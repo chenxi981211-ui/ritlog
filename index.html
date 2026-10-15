@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ritlog</title>
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ritlog">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="screen-title">Rit loggen</h1>
+    <button class="sync-pill" id="sync-pill" type="button" aria-live="polite">…</button>
+  </header>
+
+  <main id="main">
+    <!-- NIEUWE RIT -->
+    <section class="screen active" id="screen-new" data-title="Rit loggen">
+      <div class="banner hidden" id="setup-banner">
+        <span id="setup-banner-text">Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.</span>
+        <button type="button" class="link" data-go="settings">Instellen</button>
+      </div>
+
+      <div class="quick" id="quick-routes" aria-label="Snelle ritten"></div>
+
+      <button type="button" class="voice-btn" id="voice-btn">
+        <span class="mic" aria-hidden="true"></span>
+        <span class="voice-label">
+          <strong>Inspreken</strong>
+          <small id="voice-hint">Bijv. “gisteren van werk naar Coolsingel 40 Rotterdam van 5 tot half 6”</small>
+        </span>
+      </button>
+      <div class="voice-panel hidden" id="voice-panel">
+        <textarea id="voice-text" rows="2" placeholder="Tik hier en gebruik de microfoon op je toetsenbord…"></textarea>
+        <div class="row gap">
+          <button type="button" class="btn small" id="voice-apply">Invullen</button>
+          <button type="button" class="btn small ghost" id="voice-close">Sluiten</button>
+        </div>
+      </div>
+
+      <form id="trip-form" autocomplete="off" novalidate>
+        <input type="hidden" name="id">
+        <div class="card">
+          <div class="place-field">
+            <label for="f-from">Van</label>
+            <div class="input-wrap">
+              <input id="f-from" name="from" placeholder="Vertrekadres" required>
+              <button type="button" class="icon-btn" data-locate="from" aria-label="Huidige locatie als vertrek">⌖</button>
+            </div>
+            <div class="suggest hidden" data-suggest="from"></div>
+          </div>
+          <button type="button" class="swap" id="swap-btn" aria-label="Wissel van en naar">⇅</button>
+          <div class="place-field">
+            <label for="f-to">Naar</label>
+            <div class="input-wrap">
+              <input id="f-to" name="to" placeholder="Aankomstadres" required>
+              <button type="button" class="icon-btn" data-locate="to" aria-label="Huidige locatie als aankomst">⌖</button>
+            </div>
+            <div class="suggest hidden" data-suggest="to"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <label for="f-desc">Omschrijving</label>
+          <input id="f-desc" name="desc" placeholder="Bijv. Van huis naar werk">
+        </div>
+
+        <div class="card grid3">
+          <div><label for="f-date">Datum</label><input id="f-date" name="date" type="date" required></div>
+          <div><label for="f-start">Start</label><input id="f-start" name="start" type="time" required></div>
+          <div><label for="f-end">Eind</label><input id="f-end" name="end" type="time" required></div>
+        </div>
+
+        <div class="card">
+          <div class="km-row">
+            <div class="grow">
+              <label for="f-km">Afstand (km)</label>
+              <input id="f-km" name="km" type="text" inputmode="decimal" placeholder="0,00" required>
+            </div>
+            <button type="button" class="btn small ghost" id="calc-btn">Bereken</button>
+          </div>
+          <p class="hint" id="km-hint"></p>
+          <div class="grid2">
+            <div><label for="f-odoStart">Beginstand km-teller</label><input id="f-odoStart" name="odoStart" type="text" inputmode="numeric"></div>
+            <div><label for="f-odoEnd">Eindstand km-teller</label><input id="f-odoEnd" name="odoEnd" type="text" inputmode="numeric"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>Type rit</label>
+          <div class="segmented" id="type-seg">
+            <button type="button" data-type="Zakelijk">Zakelijk</button>
+            <button type="button" data-type="Privé">Privé</button>
+          </div>
+          <input type="hidden" name="type">
+          <details class="more">
+            <summary>Meer velden</summary>
+            <div class="grid2">
+              <div><label for="f-detourBiz">Zakelijke omrijkm</label><input id="f-detourBiz" name="detourBiz" type="text" inputmode="decimal"></div>
+              <div><label for="f-detourPriv">Privé omrijkm</label><input id="f-detourPriv" name="detourPriv" type="text" inputmode="decimal"></div>
+              <div><label for="f-car">Auto</label><input id="f-car" name="car"></div>
+              <div><label for="f-plate">Kenteken</label><input id="f-plate" name="plate"></div>
+              <div><label for="f-driver">Rijder</label><input id="f-driver" name="driver"></div>
+            </div>
+          </details>
+        </div>
+
+        <div class="save-bar">
+          <div class="save-summary" id="save-summary"></div>
+          <div class="row gap">
+            <button type="button" class="btn ghost hidden" id="delete-btn">Verwijderen</button>
+            <button type="button" class="btn ghost hidden" id="cancel-edit-btn">Annuleren</button>
+            <button type="button" class="btn ghost hidden" id="repeat-btn">Herhaal</button>
+            <button type="submit" class="btn primary grow" id="save-btn">Rit opslaan</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- RITTEN -->
+    <section class="screen" id="screen-trips" data-title="Ritten">
+      <div class="row gap toolbar">
+        <select id="trips-month" aria-label="Maand"></select>
+        <button type="button" class="btn small ghost" id="pull-btn">Ophalen uit Sheet</button>
+      </div>
+      <div id="trip-list"></div>
+    </section>
+
+    <!-- OVERZICHT -->
+    <section class="screen" id="screen-summary" data-title="Overzicht">
+      <select id="summary-month" aria-label="Maand"></select>
+      <div id="summary"></div>
+      <div class="card">
+        <h2>Exporteren</h2>
+        <p class="hint">Kolommen en volgorde zijn gelijk aan je Google Sheet.</p>
+        <div class="stack">
+          <button type="button" class="btn" id="export-csv">Download CSV (Excel)</button>
+          <button type="button" class="btn ghost" id="export-copy">Kopieer voor Google Sheets</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- INSTELLINGEN -->
+    <section class="screen" id="screen-settings" data-title="Instellingen">
+      <div class="card">
+        <h2>Instellingen-link</h2>
+        <p class="hint">Plak hier je persoonlijke link (met #setup=…) om plekken, auto en Sheet-koppeling in één keer te laden.</p>
+        <input id="setup-input" placeholder="https://…#setup=…" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div class="row gap" style="margin-top:8px">
+          <button type="button" class="btn small" id="setup-load">Laden</button>
+          <button type="button" class="btn small ghost" id="setup-copy">Kopieer mijn link</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Google Sheet</h2>
+        <p class="hint">Plak de Web-app URL en de code uit het Apps Script (zie handleiding).</p>
+        <label for="s-url">Web-app URL</label>
+        <input id="s-url" placeholder="https://script.google.com/macros/s/…/exec">
+        <label for="s-token">Code (token)</label>
+        <input id="s-token" placeholder="geheime code">
+        <div class="row gap">
+          <button type="button" class="btn small" id="s-test">Opslaan & testen</button>
+          <span class="hint" id="s-test-result"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row between"><h2>Vaste plekken</h2><button type="button" class="btn small ghost" id="add-place">+ Plek</button></div>
+        <div id="place-list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Standaardwaarden</h2>
+        <div class="grid2">
+          <div><label for="s-rate">Vergoeding per km (€)</label><input id="s-rate" inputmode="decimal"></div>
+          <div><label for="s-type">Type rit</label><select id="s-type"><option>Zakelijk</option><option>Privé</option></select></div>
+          <div><label for="s-car">Auto</label><input id="s-car"></div>
+          <div><label for="s-plate">Kenteken</label><input id="s-plate"></div>
+          <div><label for="s-driver">Rijder</label><input id="s-driver"></div>
+          <div><label for="s-odo">Laatste km-stand</label><input id="s-odo" inputmode="numeric"></div>
+          <div><label for="s-lang">Taal inspreken</label><select id="s-lang"><option value="nl-NL">Nederlands</option><option value="en-US">English</option></select></div>
+        </div>
+        <button type="button" class="btn small" id="s-save-defaults">Opslaan</button>
+      </div>
+
+      <div class="card">
+        <h2>Gegevens</h2>
+        <div class="stack">
+          <button type="button" class="btn ghost" id="backup-btn">Back-up downloaden (JSON)</button>
+          <button type="button" class="btn ghost danger" id="reset-btn">Alles wissen op deze telefoon</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button type="button" data-go="new" class="active"><span aria-hidden="true">＋</span>Rit</button>
+    <button type="button" data-go="trips"><span aria-hidden="true">☰</span>Ritten</button>
+    <button type="button" data-go="summary"><span aria-hidden="true">∑</span>Overzicht</button>
+    <button type="button" data-go="settings"><span aria-hidden="true">⚙</span>Instellingen</button>
+  </nav>
+
+  <dialog id="place-dialog">
+    <form method="dialog" id="place-form">
+      <h2 id="place-dialog-title">Plek</h2>
+      <input type="hidden" name="id">
+      <label for="p-name">Naam</label>
+      <input id="p-name" name="name" placeholder="Bijv. Thuis" required>
+      <label for="p-address">Adres</label>
+      <div class="input-wrap">
+        <input id="p-address" name="address" placeholder="Straat 1, Plaats" required>
+        <button type="button" class="icon-btn" id="p-locate" aria-label="Huidige locatie">⌖</button>
+      </div>
+      <label for="p-aliases">Ook bekend als (voor inspreken)</label>
+      <input id="p-aliases" name="aliases" placeholder="bijv. huis, thuis, home">
+      <label for="p-role">Rol</label>
+      <select id="p-role" name="role"><option value="">—</option><option value="home">Thuis</option><option value="work">Werk</option></select>
+      <div class="row gap dialog-actions">
+        <button type="button" class="btn ghost danger" id="p-delete">Verwijderen</button>
+        <button type="button" class="btn ghost" id="p-cancel">Annuleren</button>
+        <button type="submit" class="btn primary">Bewaar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
