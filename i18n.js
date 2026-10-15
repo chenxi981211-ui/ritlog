@@ -1,0 +1,209 @@
+/* Tweetalige interface (NL/EN). De Nederlandse tekst is de sleutel; dit
+   bestand bevat de Engelse vertaling. Wat naar de Google Sheet gaat
+   (kolommen, "Zakelijk/Privé", omschrijvingen) blijft altijd Nederlands. */
+(() => {
+  'use strict';
+
+  const EN = {
+    // Vaste teksten in index.html
+    'Rit loggen': 'Log trip',
+    'Instellen': 'Set up',
+    'Snelle ritten': 'Quick trips',
+    'Inspreken': 'Voice input',
+    'Tik hier en gebruik de microfoon op je toetsenbord…': 'Tap here and use the microphone on your keyboard…',
+    'Invullen': 'Fill in',
+    'Sluiten': 'Close',
+    'Van': 'From',
+    'Vertrekadres': 'Start address',
+    'Huidige locatie als vertrek': 'Use current location as start',
+    'Wissel van en naar': 'Swap from and to',
+    'Naar': 'To',
+    'Aankomstadres': 'Destination address',
+    'Huidige locatie als aankomst': 'Use current location as destination',
+    'Omschrijving': 'Description',
+    'Bijv. Van huis naar werk': 'E.g. Van huis naar werk',
+    'Datum': 'Date',
+    'Eind': 'End',
+    'Afstand (km)': 'Distance (km)',
+    'Bereken': 'Calculate',
+    'Beginstand km-teller': 'Odometer start',
+    'Eindstand km-teller': 'Odometer end',
+    'Type rit': 'Trip type',
+    'Zakelijk': 'Business',
+    'Privé': 'Private',
+    'Meer velden': 'More fields',
+    'Zakelijke omrijkm': 'Business detour km',
+    'Privé omrijkm': 'Private detour km',
+    'Auto': 'Car',
+    'Kenteken': 'Licence plate',
+    'Rijder': 'Driver',
+    'Verwijderen': 'Delete',
+    'Annuleren': 'Cancel',
+    'Herhaal': 'Repeat',
+    'Rit opslaan': 'Save trip',
+    'Ritten': 'Trips',
+    'Maand': 'Month',
+    'Ophalen uit Sheet': 'Load from Sheet',
+    'Overzicht': 'Summary',
+    'Exporteren': 'Export',
+    'Kolommen en volgorde zijn gelijk aan je Google Sheet.': 'Same columns and order as the Google Sheet.',
+    'Kopieer voor Google Sheets': 'Copy for Google Sheets',
+    'Instellingen': 'Settings',
+    'Instellingen-link': 'Setup link',
+    'Plak hier je persoonlijke link (met #setup=…) om plekken, auto en Sheet-koppeling in één keer te laden.': 'Paste your personal link (with #setup=…) here to load places, car and Sheet connection in one go.',
+    'Laden': 'Load',
+    'Kopieer mijn link': 'Copy my link',
+    'Plak de Web-app URL en de code uit het Apps Script (zie handleiding).': 'Paste the Web app URL and the code from the Apps Script (see the guide).',
+    'Web-app URL': 'Web app URL',
+    'geheime code': 'secret code',
+    'Opslaan & testen': 'Save & test',
+    'Vaste plekken': 'Saved places',
+    '+ Plek': '+ Place',
+    'Standaardwaarden': 'Defaults',
+    'Vergoeding per km (€)': 'Reimbursement per km (€)',
+    'Laatste km-stand': 'Latest odometer',
+    'Taal inspreken': 'Voice language',
+    'Opslaan': 'Save',
+    'Gegevens': 'Data',
+    'Back-up downloaden (JSON)': 'Download backup (JSON)',
+    'Alles wissen op deze telefoon': 'Erase everything on this phone',
+    'Rit': 'Trip',
+    'Plek': 'Place',
+    'Naam': 'Name',
+    'Bijv. Thuis': 'E.g. Thuis',
+    'Adres': 'Address',
+    'Straat 1, Plaats': 'Street 1, City',
+    'Huidige locatie': 'Current location',
+    'Ook bekend als (voor inspreken)': 'Also known as (for voice input)',
+    'bijv. huis, thuis, home': 'e.g. huis, thuis, home',
+    'Rol': 'Role',
+    'Thuis': 'Home',
+    'Werk': 'Work',
+    'Bewaar': 'Save',
+
+    // Meldingen uit app.js
+    'Adres niet gevonden: {a}': 'Address not found: {a}',
+    'Geen route gevonden': 'No route found',
+    'Geen adres gevonden': 'No address found',
+    'Locatie niet beschikbaar': 'Location not available',
+    'Geen toegang tot locatie': 'No access to location',
+    'Op basis van eerdere ritten': 'Based on previous trips',
+    'Route berekenen…': 'Calculating route…',
+    'Berekend via snelste route (~{min} min) — pas aan indien nodig': 'Calculated via fastest route (~{min} min) — adjust if needed',
+    'Kon afstand niet berekenen: {e}': "Couldn't calculate distance: {e}",
+    'Offline — vul de afstand zelf in': 'Offline — enter the distance yourself',
+    'Wijziging opslaan': 'Save changes',
+    'Vul nog in: {f}': 'Still missing: {f}',
+    'vertrekadres': 'start address',
+    'aankomstadres': 'destination',
+    'datum': 'date',
+    'tijden': 'times',
+    'afstand': 'distance',
+    'Rit bijgewerkt': 'Trip updated',
+    'Rit opgeslagen ✓': 'Trip saved ✓',
+    'Rit opgeslagen op deze telefoon': 'Trip saved on this phone',
+    'Deze rit verwijderen (ook uit de Google Sheet)?': 'Delete this trip (also from the Google Sheet)?',
+    'Deze rit verwijderen?': 'Delete this trip?',
+    'Rit verwijderd': 'Trip deleted',
+    'Zelfde rit voor vandaag klaargezet': 'Same trip set up for today',
+    'Huis → Werk': 'Home → Work',
+    'Werk → Huis': 'Work → Home',
+    'Huis': 'Home',
+    'Terug': 'Return',
+    'Voorstel': 'Suggested',
+    'afstand berekenen': 'distance not known yet',
+    'Controleer en tik op “Rit opslaan”': 'Check and tap “Save trip”',
+    'Ingesproken afstand': 'Spoken distance',
+    'Niet verstaan: {f} — vul even aan': "Didn't catch: {f} — please fill in",
+    'van': 'from',
+    'naar': 'to',
+    'en': 'and',
+    'Ingevuld — controleer en sla op': 'Filled in — check and save',
+    'Tik op de microfoon op je toetsenbord om in te spreken': 'Tap the microphone on your keyboard to dictate',
+    'Geen toegang tot microfoon — gebruik de microfoon op je toetsenbord': 'No microphone access — use the microphone on your keyboard',
+    'Bijv. “{x}”': 'E.g. “{x}”',
+    'Geen Sheet gekoppeld': 'No Sheet connected',
+    'Onbekende fout': 'Unknown error',
+    'Ongeldige code (token)': 'Invalid code (token)',
+    'Rit niet gevonden in de Sheet (misschien handmatig gewijzigd)': 'Trip not found in the Sheet (maybe edited by hand)',
+    '{n} rit(ten) niet verstuurd — tik op de status bovenin om opnieuw te proberen': '{n} trip(s) not sent — tap the status at the top to retry',
+    '{n} rit in Google Sheet gezet ✓': '{n} trip added to Google Sheet ✓',
+    '{n} ritten in Google Sheet gezet ✓': '{n} trips added to Google Sheet ✓',
+    '{n} ritten opgehaald uit Google Sheet': 'Loaded {n} trips from Google Sheet',
+    'Ophalen mislukt: {e}': 'Loading failed: {e}',
+    '{n} lokaal': '{n} on phone',
+    'Niet gekoppeld': 'Not connected',
+    'Versturen…': 'Sending…',
+    '{n} in wachtrij': '{n} queued',
+    '✓ Gesynchroniseerd': '✓ Synced',
+    'Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.': 'Not connected to Google Sheet yet — trips are saved on this phone.',
+    'Eerste keer? Plak je persoonlijke instellingen-link onder Instellingen.': 'First time? Paste your personal setup link under Settings.',
+    'Laatste fout: {e}': 'Last error: {e}',
+    'Geen ritten in {m}.': 'No trips in {m}.',
+    'Tik op “Ophalen uit Sheet” om bestaande ritten te laden.': 'Tap “Load from Sheet” to load existing trips.',
+    'km totaal': 'km total',
+    'vergoeding ({r}/km)': 'reimbursement ({r}/km)',
+    'ritten op {d} dag': 'trips on {d} day',
+    'ritten op {d} dagen': 'trips on {d} days',
+    'zakelijk': 'business',
+    'privé': 'private',
+    'Km-teller: {a} → {b}': 'Odometer: {a} → {b}',
+    'Geen ritten in deze maand': 'No trips this month',
+    '{n} ritten gekopieerd — plak in rij 2 van de Sheet': '{n} trips copied — paste into row 2 of the Sheet',
+    'Kopiëren lukte niet': "Couldn't copy",
+    'Nog geen plekken.': 'No places yet.',
+    'Ontkoppeld': 'Disconnected',
+    'Testen…': 'Testing…',
+    '✓ Verbonden met tabblad “{s}”': '✓ Connected to tab “{s}”',
+    'Opgeslagen': 'Saved',
+    'Alle ritten en instellingen op deze telefoon wissen? (De Google Sheet blijft ongewijzigd.)': 'Erase all trips and settings on this phone? (The Google Sheet stays unchanged.)',
+    'Plek bewerken': 'Edit place',
+    'Nieuwe plek': 'New place',
+    'Naam en adres zijn nodig': 'Name and address are required',
+    'Deze instellingen-link is ongeldig': 'This setup link is invalid',
+    'Instellingen uit deze link laden? Vaste plekken en standaardwaarden worden vervangen; ritten blijven bewaard.': 'Load settings from this link? Saved places and defaults will be replaced; trips are kept.',
+    'Persoonlijke instellingen geladen ✓': 'Personal settings loaded ✓',
+    'Plak de volledige link (met #setup=…)': 'Paste the full link (with #setup=…)',
+    'Link gekopieerd — bewaar of stuur hem privé': 'Link copied — keep it or send it privately',
+    'Kopieer deze link:': 'Copy this link:',
+  };
+
+  let lang = 'nl';
+
+  function t(key, vars) {
+    let s = (lang === 'en' && EN[key]) || key;
+    if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m));
+    return s;
+  }
+
+  // Vertaalt vaste tekst en placeholders in de pagina. Elementen met
+  // data-dyn worden door app.js zelf (opnieuw) opgebouwd en overgeslagen.
+  function apply(root = document.body) {
+    document.documentElement.lang = lang;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement.closest('[data-dyn], script, style, textarea') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (n.__src === undefined) n.__src = n.nodeValue;
+      const key = n.__src.trim();
+      if (key && EN[key]) n.nodeValue = n.__src.replace(key, t(key));
+    }
+    root.querySelectorAll('[placeholder], [aria-label]').forEach((el) => {
+      if (el.closest('[data-dyn]')) return;
+      ['placeholder', 'aria-label'].forEach((attr) => {
+        if (!el.hasAttribute(attr)) return;
+        const store = 'src' + attr.replace('-', '');
+        if (el.dataset[store] === undefined) el.dataset[store] = el.getAttribute(attr);
+        el.setAttribute(attr, t(el.dataset[store]));
+      });
+    });
+  }
+
+  window.RitlogI18n = {
+    t,
+    apply,
+    get lang() { return lang; },
+    setLang(l) { lang = l === 'en' ? 'en' : 'nl'; },
+    locale: () => (lang === 'en' ? 'en-GB' : 'nl-NL'),
+  };
+})();

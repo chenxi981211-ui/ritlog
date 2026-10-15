@@ -16,25 +16,28 @@
 </head>
 <body>
   <header class="topbar">
-    <h1 id="screen-title">Rit loggen</h1>
-    <button class="sync-pill" id="sync-pill" type="button" aria-live="polite">…</button>
+    <h1 id="screen-title" data-dyn>Rit loggen</h1>
+    <div class="top-actions">
+      <button class="lang-btn" id="lang-btn" type="button" data-dyn aria-label="Language / Taal"><b>NL</b> EN</button>
+      <button class="sync-pill" id="sync-pill" type="button" aria-live="polite" data-dyn>…</button>
+    </div>
   </header>
 
   <main id="main">
     <!-- NIEUWE RIT -->
     <section class="screen active" id="screen-new" data-title="Rit loggen">
       <div class="banner hidden" id="setup-banner">
-        <span id="setup-banner-text">Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.</span>
+        <span id="setup-banner-text" data-dyn>Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.</span>
         <button type="button" class="link" data-go="settings">Instellen</button>
       </div>
 
-      <div class="quick" id="quick-routes" aria-label="Snelle ritten"></div>
+      <div class="quick" id="quick-routes" aria-label="Snelle ritten" data-dyn></div>
 
       <button type="button" class="voice-btn" id="voice-btn">
         <span class="mic" aria-hidden="true"></span>
         <span class="voice-label">
           <strong>Inspreken</strong>
-          <small id="voice-hint">Bijv. “gisteren van werk naar Coolsingel 40 Rotterdam van 5 tot half 6”</small>
+          <small id="voice-hint" data-dyn>Bijv. “gisteren van werk naar Coolsingel 40 Rotterdam van 5 tot half 6”</small>
         </span>
       </button>
       <div class="voice-panel hidden" id="voice-panel">
@@ -54,7 +57,7 @@
               <input id="f-from" name="from" placeholder="Vertrekadres" required>
               <button type="button" class="icon-btn" data-locate="from" aria-label="Huidige locatie als vertrek">⌖</button>
             </div>
-            <div class="suggest hidden" data-suggest="from"></div>
+            <div class="suggest hidden" data-suggest="from" data-dyn></div>
           </div>
           <button type="button" class="swap" id="swap-btn" aria-label="Wissel van en naar">⇅</button>
           <div class="place-field">
@@ -63,7 +66,7 @@
               <input id="f-to" name="to" placeholder="Aankomstadres" required>
               <button type="button" class="icon-btn" data-locate="to" aria-label="Huidige locatie als aankomst">⌖</button>
             </div>
-            <div class="suggest hidden" data-suggest="to"></div>
+            <div class="suggest hidden" data-suggest="to" data-dyn></div>
           </div>
         </div>
 
@@ -86,7 +89,7 @@
             </div>
             <button type="button" class="btn small ghost" id="calc-btn">Bereken</button>
           </div>
-          <p class="hint" id="km-hint"></p>
+          <p class="hint" id="km-hint" data-dyn></p>
           <div class="grid2">
             <div><label for="f-odoStart">Beginstand km-teller</label><input id="f-odoStart" name="odoStart" type="text" inputmode="numeric"></div>
             <div><label for="f-odoEnd">Eindstand km-teller</label><input id="f-odoEnd" name="odoEnd" type="text" inputmode="numeric"></div>
@@ -113,12 +116,12 @@
         </div>
 
         <div class="save-bar">
-          <div class="save-summary" id="save-summary"></div>
+          <div class="save-summary" id="save-summary" data-dyn></div>
           <div class="row gap">
             <button type="button" class="btn ghost hidden" id="delete-btn">Verwijderen</button>
             <button type="button" class="btn ghost hidden" id="cancel-edit-btn">Annuleren</button>
             <button type="button" class="btn ghost hidden" id="repeat-btn">Herhaal</button>
-            <button type="submit" class="btn primary grow" id="save-btn">Rit opslaan</button>
+            <button type="submit" class="btn primary grow" id="save-btn" data-dyn>Rit opslaan</button>
           </div>
         </div>
       </form>
@@ -127,16 +130,16 @@
     <!-- RITTEN -->
     <section class="screen" id="screen-trips" data-title="Ritten">
       <div class="row gap toolbar">
-        <select id="trips-month" aria-label="Maand"></select>
+        <select id="trips-month" aria-label="Maand" data-dyn></select>
         <button type="button" class="btn small ghost" id="pull-btn">Ophalen uit Sheet</button>
       </div>
-      <div id="trip-list"></div>
+      <div id="trip-list" data-dyn></div>
     </section>
 
     <!-- OVERZICHT -->
     <section class="screen" id="screen-summary" data-title="Overzicht">
-      <select id="summary-month" aria-label="Maand"></select>
-      <div id="summary"></div>
+      <select id="summary-month" aria-label="Maand" data-dyn></select>
+      <div id="summary" data-dyn></div>
       <div class="card">
         <h2>Exporteren</h2>
         <p class="hint">Kolommen en volgorde zijn gelijk aan je Google Sheet.</p>
@@ -168,20 +171,20 @@
         <input id="s-token" placeholder="geheime code">
         <div class="row gap">
           <button type="button" class="btn small" id="s-test">Opslaan & testen</button>
-          <span class="hint" id="s-test-result"></span>
+          <span class="hint" id="s-test-result" data-dyn></span>
         </div>
       </div>
 
       <div class="card">
         <div class="row between"><h2>Vaste plekken</h2><button type="button" class="btn small ghost" id="add-place">+ Plek</button></div>
-        <div id="place-list"></div>
+        <div id="place-list" data-dyn></div>
       </div>
 
       <div class="card">
         <h2>Standaardwaarden</h2>
         <div class="grid2">
           <div><label for="s-rate">Vergoeding per km (€)</label><input id="s-rate" inputmode="decimal"></div>
-          <div><label for="s-type">Type rit</label><select id="s-type"><option>Zakelijk</option><option>Privé</option></select></div>
+          <div><label for="s-type">Type rit</label><select id="s-type"><option value="Zakelijk">Zakelijk</option><option value="Privé">Privé</option></select></div>
           <div><label for="s-car">Auto</label><input id="s-car"></div>
           <div><label for="s-plate">Kenteken</label><input id="s-plate"></div>
           <div><label for="s-driver">Rijder</label><input id="s-driver"></div>
@@ -210,7 +213,7 @@
 
   <dialog id="place-dialog">
     <form method="dialog" id="place-form">
-      <h2 id="place-dialog-title">Plek</h2>
+      <h2 id="place-dialog-title" data-dyn>Plek</h2>
       <input type="hidden" name="id">
       <label for="p-name">Naam</label>
       <input id="p-name" name="name" placeholder="Bijv. Thuis" required>
@@ -231,9 +234,10 @@
     </form>
   </dialog>
 
-  <div class="toast hidden" id="toast" role="status"></div>
+  <div class="toast hidden" id="toast" role="status" data-dyn></div>
 
   <script src="config.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -5,6 +5,8 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
+  const I18N = window.RitlogI18n;
+  const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
   const PDOK = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1';
   const OSRM = 'https://router.project-osrm.org/route/v1/driving';
@@ -59,8 +61,8 @@
   };
   const parseSheetTime = (s) => { const m = String(s || '').match(/(\d{1,2})[:.](\d{2})/); return m ? `${pad(m[1])}:${m[2]}` : ''; };
   const sheetDate = (iso) => { const [y, m, d] = iso.split('-'); return `${+d}-${+m}-${y}`; };
-  const dayLabel = (iso) => new Date(iso + 'T12:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
-  const monthLabel = (key) => new Date(key + '-15T12:00').toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
+  const dayLabel = (iso) => new Date(iso + 'T12:00').toLocaleDateString(I18N.locale(), { weekday: 'long', day: 'numeric', month: 'long' });
+  const monthLabel = (key) => new Date(key + '-15T12:00').toLocaleDateString(I18N.locale(), { month: 'long', year: 'numeric' });
 
   let toastTimer;
   function toast(msg, ms = 2600) {
@@ -135,14 +137,14 @@
     const data = await fetchJSON(`${PDOK}/free?rows=1&q=${encodeURIComponent(addr)}`);
     const doc = data.response?.docs?.[0];
     const m = doc?.centroide_ll?.match(/POINT\(([\d.\-]+) ([\d.\-]+)\)/);
-    if (!m) throw new Error('Adres niet gevonden: ' + addr);
+    if (!m) throw new Error(tr('Adres niet gevonden: {a}', { a: addr }));
     return (geoCache[key] = { lon: +m[1], lat: +m[2] });
   }
   async function routeDistance(from, to) {
     const [a, b] = await Promise.all([geocode(from), geocode(to)]);
     const data = await fetchJSON(`${OSRM}/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);
     const r = data.routes?.[0];
-    if (!r) throw new Error('Geen route gevonden');
+    if (!r) throw new Error(tr('Geen route gevonden'));
     return { km: Math.round(r.distance / 10) / 100, min: Math.round(r.duration / 60) };
   }
   const tidyAddress = (s) => String(s || '').replace(/,?\s*\d{4}\s?[A-Z]{2}\b/, ',').replace(/,\s*,/g, ',').replace(/\s+,/g, ',').replace(/,\s*/g, ', ').trim();
@@ -156,7 +158,7 @@
     if (near) return near.address;
     const data = await fetchJSON(`${PDOK}/reverse?type=adres&rows=1&lat=${lat}&lon=${lon}`);
     const doc = data.response?.docs?.[0];
-    if (!doc) throw new Error('Geen adres gevonden');
+    if (!doc) throw new Error(tr('Geen adres gevonden'));
     return tidyAddress(doc.weergavenaam);
   }
   function haversine(lat1, lon1, lat2, lon2) {
@@ -167,10 +169,10 @@
   }
   function currentPosition() {
     return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) return reject(new Error('Locatie niet beschikbaar'));
+      if (!navigator.geolocation) return reject(new Error(tr('Locatie niet beschikbaar')));
       navigator.geolocation.getCurrentPosition(
         (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
-        () => reject(new Error('Geen toegang tot locatie')),
+        () => reject(new Error(tr('Geen toegang tot locatie'))),
         { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
       );
     });
@@ -180,7 +182,7 @@
   function go(name) {
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
     $$('#tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.go === name));
-    $('#screen-title').textContent = $('#screen-' + name).dataset.title;
+    $('#screen-title').textContent = tr($('#screen-' + name).dataset.title);
     if (name === 'trips') renderTrips();
     if (name === 'summary') renderSummary();
     if (name === 'settings') renderSettings();
@@ -240,25 +242,25 @@
     const known = !force && (knownRoute(from, to) || knownRoute(to, from));
     if (known) {
       F('km').value = fmtKm(known.km);
-      hint.textContent = 'Op basis van eerdere ritten';
+      hint.textContent = tr('Op basis van eerdere ritten');
       hint.classList.remove('warn');
       setTimesForDuration(known.min);
       updateOdoEnd(); updateFee();
       return;
     }
     const req = ++distanceReq;
-    hint.textContent = 'Route berekenen…';
+    hint.textContent = tr('Route berekenen…');
     hint.classList.remove('warn');
     try {
       const r = await routeDistance(from, to);
       if (req !== distanceReq) return;
       F('km').value = fmtKm(r.km);
-      hint.textContent = `Berekend via snelste route (~${r.min} min) — pas aan indien nodig`;
+      hint.textContent = tr('Berekend via snelste route (~{min} min) — pas aan indien nodig', { min: r.min });
       setTimesForDuration(r.min);
       updateOdoEnd(); updateFee();
     } catch (err) {
       if (req !== distanceReq) return;
-      hint.textContent = navigator.onLine ? 'Kon afstand niet berekenen: ' + err.message : 'Offline — vul de afstand zelf in';
+      hint.textContent = navigator.onLine ? tr('Kon afstand niet berekenen: {e}', { e: err.message }) : tr('Offline — vul de afstand zelf in');
       hint.classList.add('warn');
     }
   }
@@ -276,7 +278,7 @@
     F('odoStart').value = fmtOdo(latestOdo());
     setType(s.defaultType);
     $('#km-hint').textContent = '';
-    $('#save-btn').textContent = 'Rit opslaan';
+    $('#save-btn').textContent = tr('Rit opslaan');
     $('#delete-btn').classList.add('hidden');
     $('#cancel-edit-btn').classList.add('hidden');
     $('#repeat-btn').classList.add('hidden');
@@ -297,7 +299,7 @@
       F('id').value = t.id;
       ['date', 'start', 'end', 'odoStart', 'odoEnd'].forEach((k) => { F(k).value = vals[k] ?? ''; });
       odoEndDirty = true;
-      $('#save-btn').textContent = 'Wijziging opslaan';
+      $('#save-btn').textContent = tr('Wijziging opslaan');
       $('#delete-btn').classList.remove('hidden');
       $('#cancel-edit-btn').classList.remove('hidden');
       $('#repeat-btn').classList.remove('hidden');
@@ -328,12 +330,12 @@
     e.preventDefault();
     const data = readForm();
     const missing = [];
-    if (!data.from) missing.push('vertrekadres');
-    if (!data.to) missing.push('aankomstadres');
-    if (!data.date) missing.push('datum');
-    if (!data.start || !data.end) missing.push('tijden');
-    if (!data.km) missing.push('afstand');
-    if (missing.length) return toast('Vul nog in: ' + missing.join(', '));
+    if (!data.from) missing.push(tr('vertrekadres'));
+    if (!data.to) missing.push(tr('aankomstadres'));
+    if (!data.date) missing.push(tr('datum'));
+    if (!data.start || !data.end) missing.push(tr('tijden'));
+    if (!data.km) missing.push(tr('afstand'));
+    if (missing.length) return toast(tr('Vul nog in: {f}', { f: missing.join(', ') }));
 
     const dur = (toMin(data.end) - toMin(data.start) + 1440) % 1440;
     learnRoute(data.from, data.to, data.km, dur || null);
@@ -346,10 +348,10 @@
         if (t.sync === 'synced' || t.sync === 'error-update') t.sync = 'update';
         else if (t.sync === 'local' && state.settings.scriptUrl) t.sync = 'add';
       }
-      toast('Rit bijgewerkt');
+      toast(tr('Rit bijgewerkt'));
     } else {
       state.trips.push({ id: uid(), ...data, created: stamp, modified: stamp, sync: state.settings.scriptUrl ? 'add' : 'local' });
-      toast(state.settings.scriptUrl ? 'Rit opgeslagen ✓' : 'Rit opgeslagen op deze telefoon');
+      toast(state.settings.scriptUrl ? tr('Rit opgeslagen ✓') : tr('Rit opgeslagen op deze telefoon'));
     }
     if (data.odoEnd && data.odoEnd > (state.lastOdo || 0)) state.lastOdo = data.odoEnd;
     save();
@@ -363,19 +365,19 @@
   });
 
   $('#delete-btn').addEventListener('click', () => {
-    if (!editingId || !confirm('Deze rit verwijderen' + (state.settings.scriptUrl ? ' (ook uit de Google Sheet)?' : '?'))) return;
+    if (!editingId || !confirm(state.settings.scriptUrl ? tr('Deze rit verwijderen (ook uit de Google Sheet)?') : tr('Deze rit verwijderen?'))) return;
     const t = state.trips.find((x) => x.id === editingId);
     if (t) {
       if (t.sync === 'synced' || t.sync === 'update' || t.sync === 'error-update') { t.sync = 'delete'; t.modified = new Date().toISOString(); }
       else state.trips = state.trips.filter((x) => x.id !== editingId);
     }
     save(); resetForm(); flush(); go('trips');
-    toast('Rit verwijderd');
+    toast(tr('Rit verwijderd'));
   });
   $('#cancel-edit-btn').addEventListener('click', () => { resetForm(); go('trips'); });
   $('#repeat-btn').addEventListener('click', () => {
     const t = state.trips.find((x) => x.id === editingId);
-    if (t) { fillFromTrip(t, false); toast('Zelfde rit voor vandaag klaargezet'); }
+    if (t) { fillFromTrip(t, false); toast(tr('Zelfde rit voor vandaag klaargezet')); }
   });
 
   F('desc').addEventListener('input', () => { descDirty = F('desc').value.trim() !== ''; });
@@ -443,14 +445,14 @@
     const home = placeByRole('home'), work = placeByRole('work');
     const list = [];
     const add = (from, to, label, tag) => {
-      if (!from || !to || list.some((r) => norm(r.from) === norm(from) && norm(r.to) === norm(to))) return;
+      if (!from || !to || norm(from) === norm(to) || list.some((r) => norm(r.from) === norm(from) && norm(r.to) === norm(to))) return;
       const k = knownRoute(from, to) || knownRoute(to, from);
       list.push({ from, to, label, tag, km: k?.km, min: k?.min });
     };
     const morning = new Date().getHours() < 13;
     if (home && work) {
-      if (morning) { add(home.address, work.address, 'Huis → Werk'); add(work.address, home.address, 'Werk → Huis'); }
-      else { add(work.address, home.address, 'Werk → Huis'); add(home.address, work.address, 'Huis → Werk'); }
+      if (morning) { add(home.address, work.address, tr('Huis → Werk')); add(work.address, home.address, tr('Werk → Huis')); }
+      else { add(work.address, home.address, tr('Werk → Huis')); add(home.address, work.address, tr('Huis → Werk')); }
     }
     // Vaakst gereden andere routes van de laatste 60 dagen
     const since = isoDate(new Date(Date.now() - 60 * 864e5));
@@ -463,16 +465,16 @@
       if (list.length < 4) add(r.from, r.to, placeName(r.from) + ' → ' + placeName(r.to));
     });
     const last = sortTrips(liveTrips())[0];
-    if (last && list.length < 4) add(last.to, home?.address, placeName(last.to) + ' → ' + (home ? 'Huis' : ''), 'Terug');
+    if (last && list.length < 4) add(last.to, home?.address, placeName(last.to) + ' → ' + (home ? tr('Huis') : ''), tr('Terug'));
     return list.slice(0, 4);
   }
   function renderQuick() {
     const routes = quickRoutes();
     $('#quick-routes').innerHTML = routes.map((r, i) => `
       <button type="button" class="quick-btn${i === 0 ? ' hero' : ''}" data-q="${i}">
-        ${i === 0 ? '<span class="tag">Voorstel</span>' : r.tag ? `<span class="tag">${esc(r.tag)}</span>` : ''}
+        ${i === 0 ? `<span class="tag">${tr('Voorstel')}</span>` : r.tag ? `<span class="tag">${esc(r.tag)}</span>` : ''}
         <strong>${esc(r.label)}</strong>
-        <small>${r.km ? fmtKm(r.km) + ' km' : 'afstand berekenen'}${r.min ? ' · ~' + r.min + ' min' : ''}</small>
+        <small>${r.km ? fmtKm(r.km) + ' km' : tr('afstand berekenen')}${r.min ? ' · ~' + r.min + ' min' : ''}</small>
       </button>`).join('');
     $('#quick-routes').onclick = (e) => {
       const b = e.target.closest('[data-q]'); if (!b) return;
@@ -480,7 +482,7 @@
       resetForm({ from: r.from, to: r.to });
       $('#save-btn').focus({ preventScroll: true });
       $('.save-bar').scrollIntoView({ behavior: 'smooth', block: 'end' });
-      toast('Controleer en tik op “Rit opslaan”');
+      toast(tr('Controleer en tik op “Rit opslaan”'));
     };
   }
 
@@ -595,7 +597,7 @@
     if (p.odoStart) F('odoStart').value = fmtOdo(p.odoStart);
     if (p.desc) { F('desc').value = p.desc; descDirty = true; }
     await updateDistance();
-    if (p.km) { F('km').value = fmtKm(p.km); $('#km-hint').textContent = 'Ingesproken afstand'; updateOdoEnd(); updateFee(); }
+    if (p.km) { F('km').value = fmtKm(p.km); $('#km-hint').textContent = tr('Ingesproken afstand'); updateOdoEnd(); updateFee(); }
     // Alleen starttijd genoemd → eindtijd = start + reistijd
     if (p.start && !p.end) {
       const k = knownRoute(F('from').value, F('to').value);
@@ -606,9 +608,9 @@
       F('start').value = fromMin(toMin(F('start').value) - 720);
       F('end').value = fromMin(toMin(F('end').value) - 720);
     }
-    const missing = [!F('from').value && 'van', !F('to').value && 'naar'].filter(Boolean);
+    const missing = [!F('from').value && tr('van'), !F('to').value && tr('naar')].filter(Boolean);
     if (!missing.length) { $('#voice-panel').classList.add('hidden'); $('#voice-text').value = ''; }
-    toast(missing.length ? 'Niet verstaan: ' + missing.join(' en ') + ' — vul even aan' : 'Ingevuld — controleer en sla op');
+    toast(missing.length ? tr('Niet verstaan: {f} — vul even aan', { f: missing.join(' ' + tr('en') + ' ') }) : tr('Ingevuld — controleer en sla op'));
   }
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -616,7 +618,7 @@
   $('#voice-btn').addEventListener('click', () => {
     const panel = $('#voice-panel'), btn = $('#voice-btn'), ta = $('#voice-text');
     panel.classList.remove('hidden');
-    if (!SR) { ta.focus(); toast('Tik op de microfoon op je toetsenbord om in te spreken'); return; }
+    if (!SR) { ta.focus(); toast(tr('Tik op de microfoon op je toetsenbord om in te spreken')); return; }
     if (rec) { rec.stop(); return; }
     try {
       rec = new SR();
@@ -626,7 +628,7 @@
       ta.value = '';
       rec.onresult = (e) => { ta.value = [...e.results].map((r) => r[0].transcript).join(' '); };
       rec.onerror = (e) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Geen toegang tot microfoon — gebruik de microfoon op je toetsenbord');
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast(tr('Geen toegang tot microfoon — gebruik de microfoon op je toetsenbord'));
         ta.focus();
       };
       rec.onend = () => {
@@ -644,10 +646,10 @@
   let flushing = false;
   async function api(payload) {
     const { scriptUrl, token } = state.settings;
-    if (!scriptUrl) throw new Error('Geen Sheet gekoppeld');
+    if (!scriptUrl) throw new Error(tr('Geen Sheet gekoppeld'));
     // text/plain = "simple request" zonder CORS-preflight; Apps Script leest de body.
     const res = await fetchJSON(scriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token, ...payload }) }, 25000);
-    if (!res.ok) throw new Error(res.error || 'Onbekende fout');
+    if (!res.ok) throw new Error(tr(res.error || 'Onbekende fout'));
     return res;
   }
   const tripPayload = (t) => Object.fromEntries(COLUMNS.map(([k]) => [k, t[k] ?? '']).filter(([k]) => k !== 'ts'));
@@ -675,8 +677,8 @@
     }
     flushing = false;
     renderSyncPill();
-    if (failed) toast(`${failed} rit(ten) niet verstuurd — tik op de status bovenin om opnieuw te proberen`, 4000);
-    else if (ok) toast(`${ok} rit${ok > 1 ? 'ten' : ''} in Google Sheet gezet ✓`);
+    if (failed) toast(tr('{n} rit(ten) niet verstuurd — tik op de status bovenin om opnieuw te proberen', { n: failed }), 4000);
+    else if (ok) toast(tr(ok > 1 ? '{n} ritten in Google Sheet gezet ✓' : '{n} rit in Google Sheet gezet ✓', { n: ok }));
     if ($('#screen-trips').classList.contains('active')) renderTrips();
   }
 
@@ -707,10 +709,10 @@
       save();
       renderQuick(); renderSyncPill();
       if (!editingId && !F('odoStart').dataset.touched) { F('odoStart').value = fmtOdo(latestOdo()); updateOdoEnd(); }
-      if (!silent) toast(`${fromSheet.length} ritten opgehaald uit Google Sheet`);
+      if (!silent) toast(tr('{n} ritten opgehaald uit Google Sheet', { n: fromSheet.length }));
       if ($('#screen-trips').classList.contains('active')) renderTrips();
     } catch (err) {
-      if (!silent) toast('Ophalen mislukt: ' + err.message, 4000);
+      if (!silent) toast(tr('Ophalen mislukt: {e}', { e: err.message }), 4000);
     }
   }
 
@@ -720,19 +722,19 @@
     const errors = state.trips.filter((t) => /^error/.test(t.sync)).length;
     const local = state.trips.filter((t) => t.sync === 'local').length;
     pill.className = 'sync-pill';
-    if (!state.settings.scriptUrl) { pill.textContent = local ? `${local} lokaal` : 'Niet gekoppeld'; }
-    else if (flushing) { pill.textContent = 'Versturen…'; pill.classList.add('pending'); }
-    else if (pending) { pill.textContent = `${pending} in wachtrij${errors ? ' ⚠' : ''}`; pill.classList.add('pending'); }
-    else { pill.textContent = navigator.onLine ? '✓ Gesynchroniseerd' : 'Offline'; pill.classList.add('ok'); }
+    if (!state.settings.scriptUrl) { pill.textContent = local ? tr('{n} lokaal', { n: local }) : tr('Niet gekoppeld'); }
+    else if (flushing) { pill.textContent = tr('Versturen…'); pill.classList.add('pending'); }
+    else if (pending) { pill.textContent = tr('{n} in wachtrij', { n: pending }) + (errors ? ' ⚠' : ''); pill.classList.add('pending'); }
+    else { pill.textContent = navigator.onLine ? tr('✓ Gesynchroniseerd') : 'Offline'; pill.classList.add('ok'); }
     $('#setup-banner').classList.toggle('hidden', !!state.settings.scriptUrl);
     $('#setup-banner-text').textContent = state.places.length
-      ? 'Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.'
-      : 'Eerste keer? Plak je persoonlijke instellingen-link onder Instellingen.';
+      ? tr('Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.')
+      : tr('Eerste keer? Plak je persoonlijke instellingen-link onder Instellingen.');
   }
   $('#sync-pill').addEventListener('click', () => {
     if (!state.settings.scriptUrl) return go('settings');
     const err = state.trips.find((t) => t.error);
-    if (err) toast('Laatste fout: ' + err.error, 4000);
+    if (err) toast(tr('Laatste fout: {e}', { e: err.error }), 4000);
     flush().then(() => pull(true));
   });
   $('#pull-btn').addEventListener('click', () => pull(false));
@@ -757,7 +759,7 @@
     monthOptions(sel);
     const trips = sortTrips(liveTrips().filter((t) => monthKey(t.date) === sel.value));
     if (!trips.length) {
-      $('#trip-list').innerHTML = `<div class="empty">Geen ritten in ${monthLabel(sel.value)}.${state.settings.scriptUrl ? '<br>Tik op “Ophalen uit Sheet” om bestaande ritten te laden.' : ''}</div>`;
+      $('#trip-list').innerHTML = `<div class="empty">${tr('Geen ritten in {m}.', { m: monthLabel(sel.value) })}${state.settings.scriptUrl ? '<br>' + tr('Tik op “Ophalen uit Sheet” om bestaande ritten te laden.') : ''}</div>`;
       return;
     }
     let html = '', day = '';
@@ -796,12 +798,12 @@
     trips.forEach((t) => { const k = placeName(t.from) + ' → ' + placeName(t.to); (routes[k] ||= { n: 0, km: 0 }); routes[k].n++; routes[k].km += t.km || 0; });
     $('#summary').innerHTML = `
       <div class="stats">
-        <div class="stat"><b>${fmtKm(km)}</b><span>km totaal</span></div>
-        <div class="stat"><b>${fmtEur(fee)}</b><span>vergoeding (${fmtEur(state.settings.rate)}/km)</span></div>
-        <div class="stat"><b>${trips.length}</b><span>ritten op ${days} dag${days === 1 ? '' : 'en'}</span></div>
-        <div class="stat"><b>${fmtKm(biz)}</b><span>zakelijk${priv ? ` · ${fmtKm(priv)} privé` : ''}</span></div>
+        <div class="stat"><b>${fmtKm(km)}</b><span>${tr('km totaal')}</span></div>
+        <div class="stat"><b>${fmtEur(fee)}</b><span>${tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })}</span></div>
+        <div class="stat"><b>${trips.length}</b><span>${tr(days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: days })}</span></div>
+        <div class="stat"><b>${fmtKm(biz)}</b><span>${tr('zakelijk')}${priv ? ` · ${fmtKm(priv)} ${tr('privé')}` : ''}</span></div>
       </div>
-      ${odos.length ? `<p class="hint">Km-teller: ${fmtOdo(Math.min(...odos))} → ${fmtOdo(Math.max(...odos))}</p>` : ''}
+      ${odos.length ? `<p class="hint">${tr('Km-teller: {a} → {b}', { a: fmtOdo(Math.min(...odos)), b: fmtOdo(Math.max(...odos)) })}</p>` : ''}
       ${trips.length ? `<div class="card"><h2>Routes</h2><div class="routes-list">${Object.entries(routes).sort((a, b) => b[1].n - a[1].n)
         .map(([k, r]) => `<div><span>${esc(k)} <small class="hint">×${r.n}</small></span><b>${fmtKm(r.km)} km</b></div>`).join('')}</div></div>` : ''}`;
   }
@@ -825,17 +827,17 @@
   }
   $('#export-csv').addEventListener('click', () => {
     const rows = exportRows();
-    if (!rows.length) return toast('Geen ritten in deze maand');
+    if (!rows.length) return toast(tr('Geen ritten in deze maand'));
     const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [COLUMNS.map(([, h]) => cell(h)).join(';'), ...rows.map((r) => COLUMNS.map(([k]) => cell(r[k])).join(';'))].join('\r\n');
     download(`ritten-${$('#summary-month').value}.csv`, '﻿' + csv, 'text/csv;charset=utf-8');
   });
   $('#export-copy').addEventListener('click', async () => {
     const rows = exportRows();
-    if (!rows.length) return toast('Geen ritten in deze maand');
+    if (!rows.length) return toast(tr('Geen ritten in deze maand'));
     const tsv = rows.map((r) => COLUMNS.map(([k]) => String(r[k] ?? '').replace(/\t/g, ' ')).join('\t')).join('\n');
-    try { await navigator.clipboard.writeText(tsv); toast(`${rows.length} ritten gekopieerd — plak in rij 2 van de Sheet`); }
-    catch { toast('Kopiëren lukte niet'); }
+    try { await navigator.clipboard.writeText(tsv); toast(tr('{n} ritten gekopieerd — plak in rij 2 van de Sheet', { n: rows.length })); }
+    catch { toast(tr('Kopiëren lukte niet')); }
   });
 
   /* ---------- settings ---------- */
@@ -848,8 +850,8 @@
     $('#place-list').innerHTML = state.places.map((p) => `
       <button type="button" class="place-item" data-pid="${p.id}">
         <span>${esc(p.name)}<small>${esc(p.address)}</small></span>
-        ${p.role ? `<span class="badge">${p.role === 'home' ? 'Thuis' : 'Werk'}</span>` : ''}
-      </button>`).join('') || '<p class="hint">Nog geen plekken.</p>';
+        ${p.role ? `<span class="badge">${p.role === 'home' ? tr('Thuis') : tr('Werk')}</span>` : ''}
+      </button>`).join('') || `<p class="hint">${tr('Nog geen plekken.')}</p>`;
   }
   $('#s-test').addEventListener('click', async () => {
     state.settings.scriptUrl = $('#s-url').value.trim();
@@ -857,11 +859,11 @@
     state.trips.forEach((t) => { if (t.sync === 'local' && state.settings.scriptUrl) t.sync = 'add'; });
     save(); renderSyncPill();
     const out = $('#s-test-result');
-    if (!state.settings.scriptUrl) { out.textContent = 'Ontkoppeld'; return; }
-    out.textContent = 'Testen…';
+    if (!state.settings.scriptUrl) { out.textContent = tr('Ontkoppeld'); return; }
+    out.textContent = tr('Testen…');
     try {
       const r = await api({ action: 'ping' });
-      out.textContent = `✓ Verbonden met tabblad “${r.sheet}”`;
+      out.textContent = tr('✓ Verbonden met tabblad “{s}”', { s: r.sheet });
       await flush(); await pull(true);
     } catch (err) { out.textContent = '✗ ' + err.message; }
   });
@@ -872,11 +874,11 @@
     s.driver = $('#s-driver').value.trim(); s.voiceLang = $('#s-lang').value;
     const odo = parseInt0($('#s-odo').value);
     if (odo) state.lastOdo = odo;
-    save(); if (!editingId) resetForm(); toast('Opgeslagen');
+    save(); if (!editingId) resetForm(); renderVoiceHint(); toast(tr('Opgeslagen'));
   });
   $('#backup-btn').addEventListener('click', () => download(`ritlog-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), 'application/json'));
   $('#reset-btn').addEventListener('click', () => {
-    if (!confirm('Alle ritten en instellingen op deze telefoon wissen? (De Google Sheet blijft ongewijzigd.)')) return;
+    if (!confirm(tr('Alle ritten en instellingen op deze telefoon wissen? (De Google Sheet blijft ongewijzigd.)'))) return;
     localStorage.removeItem(STORE_KEY); location.reload();
   });
 
@@ -889,7 +891,7 @@
     pf.elements.address.value = p?.address || '';
     pf.elements.aliases.value = (p?.aliases || []).join(', ');
     pf.elements.role.value = p?.role || '';
-    $('#place-dialog-title').textContent = p ? 'Plek bewerken' : 'Nieuwe plek';
+    $('#place-dialog-title').textContent = p ? tr('Plek bewerken') : tr('Nieuwe plek');
     $('#p-delete').classList.toggle('hidden', !p);
     dlg.showModal();
   }
@@ -907,7 +909,7 @@
   pf.addEventListener('submit', (e) => {
     e.preventDefault();
     const v = pf.elements;
-    if (!v.name.value.trim() || !v.address.value.trim()) return toast('Naam en adres zijn nodig');
+    if (!v.name.value.trim() || !v.address.value.trim()) return toast(tr('Naam en adres zijn nodig'));
     const data = {
       name: v.name.value.trim(), address: v.address.value.trim(), role: v.role.value,
       aliases: v.aliases.value.split(',').map((a) => a.trim().toLowerCase()).filter(Boolean),
@@ -930,8 +932,8 @@
     const m = String(text || '').match(/setup=([\w-]+)/);
     if (!m) return false;
     let cfg;
-    try { cfg = b64dec(m[1]); } catch { toast('Deze instellingen-link is ongeldig'); return false; }
-    if (ask && (state.places.length || state.trips.length) && !confirm('Instellingen uit deze link laden? Vaste plekken en standaardwaarden worden vervangen; ritten blijven bewaard.')) return false;
+    try { cfg = b64dec(m[1]); } catch { toast(tr('Deze instellingen-link is ongeldig')); return false; }
+    if (ask && (state.places.length || state.trips.length) && !confirm(tr('Instellingen uit deze link laden? Vaste plekken en standaardwaarden worden vervangen; ritten blijven bewaard.'))) return false;
     const st = state.settings;
     ['scriptUrl', 'token', 'rate', 'car', 'plate', 'driver', 'defaultType', 'voiceLang'].forEach((k) => { if (cfg[k] != null && cfg[k] !== '') st[k] = cfg[k]; });
     if (cfg.lastOdo) state.lastOdo = Math.max(cfg.lastOdo, state.lastOdo || 0);
@@ -941,7 +943,7 @@
     save();
     if (!editingId) resetForm();
     renderQuick(); renderSyncPill();
-    toast('Persoonlijke instellingen geladen ✓');
+    toast(tr('Persoonlijke instellingen geladen ✓'));
     flush().then(() => pull(true));
     return true;
   }
@@ -959,11 +961,36 @@
   }
   $('#setup-load').addEventListener('click', () => {
     if (importSetup($('#setup-input').value)) { $('#setup-input').value = ''; renderSettings(); }
-    else if (!/setup=/.test($('#setup-input').value)) toast('Plak de volledige link (met #setup=…)');
+    else if (!/setup=/.test($('#setup-input').value)) toast(tr('Plak de volledige link (met #setup=…)'));
   });
   $('#setup-copy').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(setupLink()); toast('Link gekopieerd — bewaar of stuur hem privé'); }
-    catch { prompt('Kopieer deze link:', setupLink()); }
+    try { await navigator.clipboard.writeText(setupLink()); toast(tr('Link gekopieerd — bewaar of stuur hem privé')); }
+    catch { prompt(tr('Kopieer deze link:'), setupLink()); }
+  });
+
+  /* ---------- taal / language ---------- */
+  function renderVoiceHint() {
+    const ex = state.settings.voiceLang === 'en-US'
+      ? 'yesterday from work to Coolsingel 40 Rotterdam from 5 to 5:30'
+      : 'gisteren van werk naar Coolsingel 40 Rotterdam van 5 tot half 6';
+    $('#voice-hint').textContent = tr('Bijv. “{x}”', { x: ex });
+  }
+  function applyLang() {
+    I18N.setLang(state.settings.uiLang);
+    I18N.apply();
+    const en = I18N.lang === 'en';
+    $('#lang-btn').innerHTML = en ? 'NL <b>EN</b>' : '<b>NL</b> EN';
+    const active = $('.screen.active');
+    $('#screen-title').textContent = tr(active.dataset.title);
+    $('#save-btn').textContent = tr(editingId ? 'Wijziging opslaan' : 'Rit opslaan');
+    renderVoiceHint(); renderQuick(); renderSyncPill(); updateFee();
+    if (active.id === 'screen-trips') renderTrips();
+    if (active.id === 'screen-summary') renderSummary();
+    if (active.id === 'screen-settings') renderSettings();
+  }
+  $('#lang-btn').addEventListener('click', () => {
+    state.settings.uiLang = I18N.lang === 'en' ? 'nl' : 'en';
+    save(); applyLang();
   });
 
   /* ---------- start ---------- */
@@ -972,9 +999,10 @@
     history.replaceState(null, '', location.pathname + location.search);
     setTimeout(() => importSetup(h), 0);
   }
+  if (!state.settings.uiLang) state.settings.uiLang = /^nl/i.test(navigator.language || '') ? 'nl' : 'en';
+  I18N.setLang(state.settings.uiLang);
   resetForm();
-  renderQuick();
-  renderSyncPill();
+  applyLang();
   flush().then(() => pull(true));
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

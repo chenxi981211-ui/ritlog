@@ -1,6 +1,6 @@
 # Ritlog: company-car trip logger
 
-A small web app for iPhone that logs trips straight into the existing Google Sheet. The interface is in Dutch to match the sheet.
+A small web app for iPhone that logs trips straight into the existing Google Sheet. The interface works in Dutch and English.
 
 ## What it does
 
@@ -17,6 +17,7 @@ A small web app for iPhone that logs trips straight into the existing Google She
 | **Export** | CSV per month in the same columns (opens in Excel), or *copy* to paste into Google Sheets. |
 | **History & summary** | Trips per month (tap one to edit, delete or repeat it), total km, € reimbursement, business vs. private, and the most-driven routes. |
 | **Home screen app** | Opens full-screen like a normal app, with its own icon. |
+| **English / Dutch** | Tap **NL EN** at the top to switch the app's language. It's remembered on each phone. Anything written to the Google Sheet stays Dutch, so his records stay consistent. |
 
 ## One-time setup (≈5 minutes, in his Google account)
 

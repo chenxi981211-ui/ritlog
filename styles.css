@@ -58,7 +58,13 @@ h2 { font-size: 17px; margin-bottom: 8px; }
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
 }
-.topbar h1 { font-size: 26px; letter-spacing: -.02em; }
+.topbar h1 { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; letter-spacing: -.02em; }
+.top-actions { display: flex; align-items: center; gap: 6px; }
+.lang-btn {
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px;
+  background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; letter-spacing: .02em;
+}
+.lang-btn b { color: var(--primary); }
 .sync-pill {
   border: 0; border-radius: 999px; padding: 6px 12px;
   background: var(--surface-2); color: var(--muted);
