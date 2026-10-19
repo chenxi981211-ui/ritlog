@@ -5,6 +5,7 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
+  const APP_VERSION = '2026-10-19.2';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -861,6 +862,7 @@
     $('#s-url').value = s.scriptUrl; $('#s-token').value = s.token;
     $('#s-rate').value = String(s.rate).replace('.', ',');
     $('#s-type').value = s.defaultType; $('#s-car').value = s.car; $('#s-plate').value = s.plate; $('#s-driver').value = s.driver;
+    $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
     $('#s-odo').value = fmtOdo(latestOdo()); $('#s-lang').value = s.voiceLang;
     $('#place-list').innerHTML = state.places.map((p) => `
       <button type="button" class="place-item" data-pid="${p.id}">
@@ -1142,7 +1144,17 @@
   flush().then(() => pull(true));
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Nieuwe versie gepubliceerd → automatisch één keer herladen
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      reloading = true; location.reload();
+    });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+      reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
   }
   // Voor tests in de browser
   window.__ritlog = { state: () => state, parseSpeech };
