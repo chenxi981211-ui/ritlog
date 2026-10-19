@@ -254,3 +254,13 @@ dialog label { margin-top: 10px; }
   font-size: 14px; font-weight: 600; max-width: calc(100vw - 32px); text-align: center;
   box-shadow: 0 6px 20px rgba(0,0,0,.25);
 }
+
+/* Koppelkaart */
+.connect-card { border: 2px solid var(--primary-soft); }
+.connect-card h2 { font-size: 19px; }
+.connect-card .stack { margin-top: 10px; }
+.connect-card ol { margin: 10px 0 4px; padding-left: 22px; display: grid; gap: 10px; font-size: 15px; }
+.connect-card ol li::marker { color: var(--primary); font-weight: 700; }
+.connect-card .btn.small { margin-top: 6px; }
+.connect-card details { margin-top: 12px; }
+.connect-card summary { color: var(--primary); font-weight: 600; cursor: pointer; }

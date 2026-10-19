@@ -26,10 +26,7 @@
   <main id="main">
     <!-- NIEUWE RIT -->
     <section class="screen active" id="screen-new" data-title="Rit loggen">
-      <div class="banner hidden" id="setup-banner">
-        <span id="setup-banner-text" data-dyn>Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.</span>
-        <button type="button" class="link" data-go="settings">Instellen</button>
-      </div>
+      <div class="card connect-card hidden" id="connect-card" data-dyn></div>
 
       <div class="quick" id="quick-routes" aria-label="Snelle ritten" data-dyn></div>
 
@@ -164,12 +161,15 @@
 
       <div class="card">
         <h2>Google Sheet</h2>
-        <p class="hint">Plak de Web-app URL en de code uit het Apps Script (zie handleiding).</p>
-        <label for="s-url">Web-app URL</label>
-        <input id="s-url" placeholder="https://script.google.com/macros/s/…/exec">
-        <label for="s-token">Code (token)</label>
-        <input id="s-token" placeholder="geheime code">
-        <div class="row gap">
+        <p class="hint">Koppel-link uit de Google Sheet (menu Ritlog → Telefoon koppelen).</p>
+        <label for="s-url">Koppel-link</label>
+        <input id="s-url" placeholder="https://…" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <details class="more">
+          <summary>Geavanceerd</summary>
+          <label for="s-token">Code (token, optioneel)</label>
+          <input id="s-token" placeholder="geheime code">
+        </details>
+        <div class="row gap" style="margin-top:10px">
           <button type="button" class="btn small" id="s-test">Opslaan & testen</button>
           <span class="hint" id="s-test-result" data-dyn></span>
         </div>

@@ -19,23 +19,26 @@ A small web app for iPhone that logs trips straight into the existing Google She
 | **Home screen app** | Opens full-screen like a normal app, with its own icon. |
 | **English / Dutch** | Tap **NL EN** at the top to switch the app's language. It's remembered on each phone. Anything written to the Google Sheet stays Dutch, so his records stay consistent. |
 
-## One-time setup (≈5 minutes, in his Google account)
+## Connecting the Google Sheet (3 steps, on a computer, once)
 
-1. Open the Google Sheet → **Extensies → Apps Script**.
-2. Delete what's there and paste in all of `apps-script/Code.gs`.
-3. On line 8, change `TOKEN` to a secret code of his own (e.g. `rit-7f3k9q`).
-4. Click **Implementeren → Nieuwe implementatie** → type **Web-app**.
-   - *Uitvoeren als:* **Ik**
-   - *Wie heeft toegang:* **Iedereen**
-5. Click **Implementeren**, approve access with his Google account, and copy the **Web-app URL** (ends in `/exec`).
-6. In the app: **Instellingen → Google Sheet**: paste the URL and the code → **Opslaan & testen**. It should say *✓ Verbonden met tabblad "…"* and pull in his existing trips.
-7. Tap **Instellingen → Kopieer mijn link** to get an updated personal link that includes the Sheet connection. Keep it somewhere private, e.g. Notes or a message to himself.
+The app shows these same steps on its first screen, with a **Copy script** button.
 
-> Only someone with the secret code can write to the Sheet. If the script changes later, use **Implementeren → Implementaties beheren → Bewerken → Nieuwe versie** so the URL stays the same.
+1. Open the Google Sheet → **Extensions → Apps Script**. Delete everything, paste the script (**Copy script** in the app, or `apps-script/Code.gs`) and click **Save**. Nothing needs editing.
+2. Click **Deploy → New deployment** → type **Web app**, set **Who has access** to **Anyone** → **Deploy** → allow access. If Google says the app "isn't verified", choose **Advanced → Go to … (unsafe)**. That's normal for your own script.
+3. Click the **Web app link** Google shows. A page with a QR code opens: scan it with the iPhone camera and Ritlog connects.
+
+After connecting, the app reads the existing trips and fills in **home, work, frequent addresses, the latest odometer reading and known distances** by itself. Nothing else needs setting up.
+
+- **Ritlog installed on the home screen?** On the QR page, tap **Copy link**, open Ritlog and paste the link in the box on the first screen.
+- **Need the QR code again later?** The Sheet now has a **Ritlog → Telefoon koppelen** menu that shows it.
+- **Security:** the Web app link is the key, so only share it with your own phones. (An extra code can still be set in `TOKEN` at the top of the script, but it isn't needed.)
+- **Changed the script later?** Use **Deploy → Manage deployments → Edit → New version** so the link stays the same.
+
+The script follows the Sheet's own columns by name, so columns can be added, removed or reordered. Trips get a **Rit-nr** (trip number of the day) automatically when that column exists.
 
 ## Privacy: what's public and what isn't
 
-The code is public on GitHub Pages, but it contains **no personal data**: no addresses, car, plate, name or Sheet connection. Those live in a **personal setup link** (`…/ritlog/#setup=…`). Everything after `#` stays on the phone and is never sent to GitHub. Treat the link like a key: whoever has it gets his places and can write to the Sheet. Only send it privately.
+The code is public on GitHub Pages, but it contains **no personal data**: no addresses, car, plate, name or Sheet connection. The app gets those from his own Sheet once it's connected, and keeps them on the phone. The connect link (and the older `#setup=…` link) only lives after `#`, which is never sent to GitHub. Treat these links like keys and share them privately.
 
 The original personal values are in `private/` on this Mac. That folder is git-ignored and never uploaded.
 
@@ -43,8 +46,8 @@ The original personal values are in `private/` on this Mac. That folder is git-i
 
 Live at **https://chenxi981211-ui.github.io/ritlog/**
 
-1. Open that address in **Safari** → **Share → Zet op beginscherm**.
-2. Open **Ritlog** from the home screen → **Instellingen** → paste the personal setup link → **Laden**.
+1. Open that address in **Safari** → **Share → Add to Home Screen**.
+2. Open **Ritlog** from the home screen and paste the connect link in the box on the first screen.
 
 (An app on the iPhone home screen has its own storage, separate from Safari. That's why the link is pasted inside the installed app.)
 

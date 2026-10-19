@@ -13,7 +13,7 @@
 
   // Sheet-kolommen in dezelfde volgorde als de Google Sheet
   const COLUMNS = [
-    ['ts', 'Tijdstempel'], ['desc', 'Beschrijving'], ['date', 'Datum'], ['start', 'Starttijd'],
+    ['ts', 'Tijdstempel'], ['desc', 'Beschrijving'], ['date', 'Datum'], ['tripNo', 'Rit-nr'], ['start', 'Starttijd'],
     ['end', 'Eindtijd'], ['km', 'Afstand (km)'], ['detourBiz', 'I.v.t. Zakelijke Omrijkilometers'],
     ['detourPriv', 'I.v.t. Privé Omrijkilometers'], ['odoStart', 'Beginstand km-teller'],
     ['odoEnd', 'Eindstand km-teller'], ['fee', 'Vergoeding'], ['from', 'Vertrekadres'],
@@ -105,7 +105,8 @@
   const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { console.warn(e); } };
 
   const liveTrips = () => state.trips.filter((t) => t.sync !== 'delete');
-  const sortTrips = (arr) => arr.sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start));
+  const sortKey = (t) => t.date + (t.start || '') + String(t.tripNo || 0).padStart(3, '0');
+  const sortTrips = (arr) => arr.sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
   const placeByAddress = (addr) => state.places.find((p) => norm(p.address) === norm(addr));
   const placeByRole = (role) => state.places.find((p) => p.role === role);
   const placeName = (addr) => placeByAddress(addr)?.name || String(addr || '').split(',')[0];
@@ -350,7 +351,8 @@
       }
       toast(tr('Rit bijgewerkt'));
     } else {
-      state.trips.push({ id: uid(), ...data, created: stamp, modified: stamp, sync: state.settings.scriptUrl ? 'add' : 'local' });
+      const tripNo = liveTrips().filter((x) => x.date === data.date).reduce((m, x) => Math.max(m, x.tripNo || 0), 0) + 1;
+      state.trips.push({ id: uid(), ...data, tripNo, created: stamp, modified: stamp, sync: state.settings.scriptUrl ? 'add' : 'local' });
       toast(state.settings.scriptUrl ? tr('Rit opgeslagen ✓') : tr('Rit opgeslagen op deze telefoon'));
     }
     if (data.odoEnd && data.odoEnd > (state.lastOdo || 0)) state.lastOdo = data.odoEnd;
@@ -399,9 +401,15 @@
     const q = input.value.trim();
     const qn = norm(q);
     const placeHits = state.places.filter((p) => !qn || norm(p.name).includes(qn) || norm(p.address).includes(qn) || p.aliases.some((a) => norm(a).includes(qn)));
+    const seen = new Set(placeHits.map((p) => norm(p.address)));
+    const history = [];
+    sortTrips(liveTrips()).forEach((t) => [t.to, t.from].forEach((a) => {
+      if (a && !seen.has(norm(a)) && (!qn || norm(a).includes(qn))) { seen.add(norm(a)); history.push(a); }
+    }));
     const render = (extra = []) => {
       const items = placeHits.map((p) => ({ label: p.name, sub: p.address, value: p.address }))
-        .concat(extra.filter((a) => !placeHits.some((p) => norm(p.address) === norm(a))).map((a) => ({ label: a, value: a })));
+        .concat(history.slice(0, 4).map((a) => ({ label: a, value: a })))
+        .concat(extra.filter((a) => !seen.has(norm(a))).map((a) => ({ label: a, value: a })));
       if (!items.length || document.activeElement !== input) { box.classList.add('hidden'); return; }
       box.innerHTML = items.slice(0, 7).map((i) => `<button type="button" data-value="${esc(i.value)}">${esc(i.label)}${i.sub ? `<small>${esc(i.sub)}</small>` : ''}</button>`).join('');
       box.classList.remove('hidden');
@@ -648,7 +656,7 @@
     const { scriptUrl, token } = state.settings;
     if (!scriptUrl) throw new Error(tr('Geen Sheet gekoppeld'));
     // text/plain = "simple request" zonder CORS-preflight; Apps Script leest de body.
-    const res = await fetchJSON(scriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token, ...payload }) }, 25000);
+    const res = await fetchJSON(scriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...(token ? { token } : {}), ...payload }) }, 25000);
     if (!res.ok) throw new Error(tr(res.error || 'Onbekende fout'));
     return res;
   }
@@ -684,13 +692,13 @@
 
   function rowToTrip(r) {
     const t = {
-      desc: r.desc || '', date: parseSheetDate(r.date), start: parseSheetTime(r.start), end: parseSheetTime(r.end),
+      desc: r.desc || '', date: parseSheetDate(r.date), tripNo: parseInt0(r.tripNo), start: parseSheetTime(r.start), end: parseSheetTime(r.end),
       km: parseDec(r.km), detourBiz: parseDec(r.detourBiz), detourPriv: parseDec(r.detourPriv),
       odoStart: parseInt0(r.odoStart), odoEnd: parseInt0(r.odoEnd), fee: parseDec(r.fee),
       from: (r.from || '').trim(), to: (r.to || '').trim(), type: r.type || '', car: r.car || '', plate: r.plate || '', driver: r.driver || '',
       orig: r.orig, sync: 'synced',
     };
-    t.id = 'sheet:' + (r.orig.ts || [r.orig.date, r.orig.start, r.orig.from].join('|'));
+    t.id = 'sheet:' + (r.orig.ts || [r.orig.date, r.orig.start, r.orig.tripNo, r.orig.from].join('|'));
     return t;
   }
 
@@ -698,6 +706,7 @@
     if (!state.settings.scriptUrl || !navigator.onLine) return;
     try {
       const res = await api({ action: 'list', limit: 400 });
+      if (Array.isArray(res.headers) && res.headers.length) state.sheetHeaders = res.headers;
       const pending = state.trips.filter((t) => t.sync !== 'synced' && t.sync !== 'local');
       const pendingIds = new Set(pending.map((t) => t.id));
       const fromSheet = res.rows.map(rowToTrip).filter((t) => t.date && !pendingIds.has(t.id));
@@ -706,7 +715,9 @@
       // Afstanden en reistijden leren van oudste naar nieuwste
       [...fromSheet].reverse().forEach((t) => learnRoute(t.from, t.to, t.km, (toMin(t.end) - toMin(t.start) + 1440) % 1440 || null));
       state.lastPull = new Date().toISOString();
+      const learned = inferSetup(fromSheet);
       save();
+      if (learned) { resetForm(); toast(tr('Thuis, werk en auto overgenomen uit je Sheet ✓'), 3500); silent = true; }
       renderQuick(); renderSyncPill();
       if (!editingId && !F('odoStart').dataset.touched) { F('odoStart').value = fmtOdo(latestOdo()); updateOdoEnd(); }
       if (!silent) toast(tr('{n} ritten opgehaald uit Google Sheet', { n: fromSheet.length }));
@@ -726,10 +737,7 @@
     else if (flushing) { pill.textContent = tr('Versturen…'); pill.classList.add('pending'); }
     else if (pending) { pill.textContent = tr('{n} in wachtrij', { n: pending }) + (errors ? ' ⚠' : ''); pill.classList.add('pending'); }
     else { pill.textContent = navigator.onLine ? tr('✓ Gesynchroniseerd') : 'Offline'; pill.classList.add('ok'); }
-    $('#setup-banner').classList.toggle('hidden', !!state.settings.scriptUrl);
-    $('#setup-banner-text').textContent = state.places.length
-      ? tr('Nog niet gekoppeld aan Google Sheet — ritten worden lokaal bewaard.')
-      : tr('Eerste keer? Plak je persoonlijke instellingen-link onder Instellingen.');
+    renderConnectCard();
   }
   $('#sync-pill').addEventListener('click', () => {
     if (!state.settings.scriptUrl) return go('settings');
@@ -769,7 +777,7 @@
         <span class="status ${statusClass(t)}" title="${esc(t.error || t.sync)}"></span>
         <span class="t-main">
           <div class="t-route">${esc(placeName(t.from))} → ${esc(placeName(t.to))}</div>
-          <div class="t-sub">${esc(t.start)}–${esc(t.end)} · ${esc(t.desc || '')}</div>
+          <div class="t-sub">${t.start ? `${esc(t.start)}–${esc(t.end)}` : tr('Rit {n}', { n: t.tripNo || '?' })} · ${esc(t.desc || '')}</div>
         </span>
         <span class="t-km">${fmtKm(t.km)} km<small>${fmtEur(t.fee)}</small></span>
       </button>`;
@@ -812,11 +820,16 @@
   function exportRows() {
     const key = $('#summary-month').value;
     return sortTrips(liveTrips().filter((t) => monthKey(t.date) === key)).map((t) => ({
-      ts: '', desc: t.desc, date: sheetDate(t.date), start: t.start, end: t.end,
+      ts: '', desc: t.desc, date: sheetDate(t.date), tripNo: t.tripNo || '', start: t.start, end: t.end,
       km: t.km != null ? fmtKm(t.km) + ' km' : '', detourBiz: t.detourBiz ? fmtKm(t.detourBiz) + ' km' : '',
       detourPriv: t.detourPriv ? fmtKm(t.detourPriv) + ' km' : '', odoStart: t.odoStart ? fmtOdo(t.odoStart) + ' km' : '',
       odoEnd: t.odoEnd ? fmtOdo(t.odoEnd) + ' km' : '', fee: fmtEur(t.fee), from: t.from, to: t.to, type: t.type, car: t.car, plate: t.plate, driver: t.driver,
     }));
+  }
+  // Zelfde kolommen als de Sheet nu heeft (na koppelen bekend), anders de standaardset
+  function exportColumns() {
+    if (!state.sheetHeaders?.length) return COLUMNS;
+    return state.sheetHeaders.map((h) => [COLUMNS.find(([, name]) => name === h)?.[0] || '', h]);
   }
   function download(name, content, type) {
     const blob = new Blob([content], { type });
@@ -829,13 +842,15 @@
     const rows = exportRows();
     if (!rows.length) return toast(tr('Geen ritten in deze maand'));
     const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const csv = [COLUMNS.map(([, h]) => cell(h)).join(';'), ...rows.map((r) => COLUMNS.map(([k]) => cell(r[k])).join(';'))].join('\r\n');
+    const cols = exportColumns();
+    const csv = [cols.map(([, h]) => cell(h)).join(';'), ...rows.map((r) => cols.map(([k]) => cell(r[k])).join(';'))].join('\r\n');
     download(`ritten-${$('#summary-month').value}.csv`, '﻿' + csv, 'text/csv;charset=utf-8');
   });
   $('#export-copy').addEventListener('click', async () => {
     const rows = exportRows();
     if (!rows.length) return toast(tr('Geen ritten in deze maand'));
-    const tsv = rows.map((r) => COLUMNS.map(([k]) => String(r[k] ?? '').replace(/\t/g, ' ')).join('\t')).join('\n');
+    const cols = exportColumns();
+    const tsv = rows.map((r) => cols.map(([k]) => String(r[k] ?? '').replace(/\t/g, ' ')).join('\t')).join('\n');
     try { await navigator.clipboard.writeText(tsv); toast(tr('{n} ritten gekopieerd — plak in rij 2 van de Sheet', { n: rows.length })); }
     catch { toast(tr('Kopiëren lukte niet')); }
   });
@@ -854,18 +869,17 @@
       </button>`).join('') || `<p class="hint">${tr('Nog geen plekken.')}</p>`;
   }
   $('#s-test').addEventListener('click', async () => {
-    state.settings.scriptUrl = $('#s-url').value.trim();
-    state.settings.token = $('#s-token').value.trim();
-    state.trips.forEach((t) => { if (t.sync === 'local' && state.settings.scriptUrl) t.sync = 'add'; });
-    save(); renderSyncPill();
     const out = $('#s-test-result');
-    if (!state.settings.scriptUrl) { out.textContent = tr('Ontkoppeld'); return; }
+    const raw = $('#s-url').value.trim();
+    if (!raw) {
+      state.settings.scriptUrl = ''; state.settings.token = '';
+      save(); renderSyncPill(); out.textContent = tr('Ontkoppeld'); return;
+    }
+    const parsed = parseConnect(raw) || { url: raw, token: '' };
     out.textContent = tr('Testen…');
-    try {
-      const r = await api({ action: 'ping' });
-      out.textContent = tr('✓ Verbonden met tabblad “{s}”', { s: r.sheet });
-      await flush(); await pull(true);
-    } catch (err) { out.textContent = '✗ ' + err.message; }
+    const r = await connectSheet(parsed.url, $('#s-token').value.trim() || parsed.token);
+    out.textContent = r.ok ? tr('✓ Verbonden met tabblad “{s}”', { s: r.sheet }) : '✗ ' + r.error;
+    if (r.ok) renderSettings();
   });
   $('#s-save-defaults').addEventListener('click', () => {
     const s = state.settings;
@@ -923,6 +937,122 @@
     save(); dlg.close(); renderSettings(); renderQuick();
   });
 
+  /* ---------- Google Sheet koppelen ---------- */
+  // Accepteert de koppel-link (…/ritlog/#connect=…), of direct de Apps Script-URL.
+  function parseConnect(text) {
+    text = String(text || '').trim();
+    let m = text.match(/[#&?]connect=([^&\s]+)/);
+    if (m) {
+      const tok = text.match(/[#&?]token=([^&\s]+)/);
+      return { url: decodeURIComponent(m[1]), token: tok ? decodeURIComponent(tok[1]) : '' };
+    }
+    m = text.match(/https:\/\/script\.google(?:usercontent)?\.com\/[^\s"'<>]+/);
+    if (m) return { url: m[0].replace(/\/(dev|edit)(\?.*)?$/, '/exec'), token: '' };
+    return null;
+  }
+  async function connectSheet(url, token = '') {
+    const prev = { scriptUrl: state.settings.scriptUrl, token: state.settings.token };
+    state.settings.scriptUrl = url; state.settings.token = token || '';
+    try {
+      const r = await api({ action: 'ping' });
+      state.trips.forEach((t) => { if (t.sync === 'local') t.sync = 'add'; });
+      save(); renderSyncPill();
+      toast(tr('Gekoppeld met Google Sheet ✓'));
+      await flush(); await pull(true);
+      return { ok: true, sheet: r.sheet };
+    } catch (err) {
+      Object.assign(state.settings, prev); save(); renderSyncPill();
+      const msg = /Failed to fetch|NetworkError|Load failed|HTTP 4/.test(err.message)
+        ? tr('Kon de Sheet niet bereiken. Staat "Wie heeft toegang" op "Iedereen"?') : err.message;
+      toast(msg, 5000);
+      return { ok: false, error: msg };
+    }
+  }
+
+  // Na het koppelen: thuis, werk en auto afleiden uit de bestaande ritten.
+  function inferSetup(rows) {
+    if (!rows.length) return false;
+    let changed = false;
+    const votes = { home: {}, work: {} };
+    const vote = (role, addr) => { if (addr) votes[role][addr] = (votes[role][addr] || 0) + 1; };
+    rows.forEach((r) => {
+      const d = (r.desc || '').toLowerCase();
+      if (/\b(van|vanuit|vanaf) (huis|thuis)\b/.test(d)) vote('home', r.from);
+      if (/\bnaar (huis|thuis)\b/.test(d)) vote('home', r.to);
+      if (/\bnaar (het )?(werk|kantoor)\b/.test(d)) vote('work', r.to);
+      if (/\b(van|vanuit|vanaf) (het )?(werk|kantoor)\b/.test(d)) vote('work', r.from);
+    });
+    const best = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const defs = {
+      home: { name: 'Thuis', aliases: ['huis', 'thuis', 'home'] },
+      work: { name: 'Werk', aliases: ['werk', 'kantoor', 'office', 'work'] },
+    };
+    ['home', 'work'].forEach((role) => {
+      if (placeByRole(role)) return;
+      const addr = best(votes[role]);
+      if (!addr) return;
+      const existing = placeByAddress(addr);
+      if (existing) existing.role = role;
+      else state.places.push({ id: uid(), name: defs[role].name, address: addr, aliases: defs[role].aliases, role });
+      changed = true;
+    });
+    // Andere adressen die vaker voorkomen als vaste plek toevoegen
+    const counts = {};
+    rows.forEach((r) => [r.from, r.to].forEach((a) => { if (a) counts[norm(a)] = { addr: a, n: (counts[norm(a)]?.n || 0) + 1 }; }));
+    Object.values(counts).filter((c) => c.n >= 2 && !placeByAddress(c.addr)).sort((a, b) => b.n - a.n).slice(0, 6)
+      .forEach((c) => { state.places.push({ id: uid(), name: c.addr.split(',')[0], address: c.addr, aliases: [], role: '' }); changed = true; });
+    const st = state.settings;
+    const latest = rows.find((r) => r.car || r.plate || r.driver);
+    if (latest) ['car', 'plate', 'driver'].forEach((k) => { if (!st[k] && latest[k]) { st[k] = latest[k]; changed = true; } });
+    return changed;
+  }
+
+  let scriptText = null;
+  async function loadScriptText() {
+    if (scriptText) return scriptText;
+    const res = await fetch('apps-script/Code.gs', { cache: 'no-cache' });
+    scriptText = await res.text();
+    return scriptText;
+  }
+  function renderConnectCard() {
+    const card = $('#connect-card');
+    if (state.settings.scriptUrl) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    card.innerHTML = `
+      <h2>${tr('Koppel je Google Sheet')}</h2>
+      <p class="hint">${tr('Scan de QR-code die je Sheet laat zien, of plak de koppel-link hier.')}</p>
+      <div class="stack">
+        <input id="connect-input" placeholder="${esc(tr('Plak koppel-link…'))}" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button type="button" class="btn primary" id="connect-btn">${tr('Koppelen')}</button>
+      </div>
+      <details${state.places.length ? '' : ' open'}>
+        <summary>${tr('Eerste keer? 3 stappen op de computer')}</summary>
+        <ol>
+          <li>${tr('Open je Google Sheet → <b>Extensies → Apps Script</b>. Wis alles, plak het script en klik op <b>Opslaan</b>.')}<br>
+            <button type="button" class="btn small" id="copy-script">${tr('Kopieer script')}</button></li>
+          <li>${tr('Klik <b>Implementeren → Nieuwe implementatie</b> → type <b>Web-app</b>. Zet <b>Wie heeft toegang</b> op <b>Iedereen</b> → <b>Implementeren</b> → geef toestemming.')}</li>
+          <li>${tr('Klik op de <b>Web-app-link</b> en scan de QR-code met je iPhone. Klaar!')}</li>
+        </ol>
+        <p class="hint">${tr('Zegt Google “app niet geverifieerd”? Kies <b>Geavanceerd → Ga naar … (onveilig)</b>. Dat is normaal voor je eigen script.')}</p>
+      </details>`;
+    loadScriptText().catch(() => {});
+  }
+  $('#connect-card').addEventListener('click', async (e) => {
+    if (e.target.id === 'connect-btn') {
+      const parsed = parseConnect($('#connect-input').value);
+      if (!parsed) return toast(tr('Dat lijkt geen koppel-link. Kopieer hem van de pagina met de QR-code.'), 4000);
+      e.target.disabled = true; e.target.textContent = tr('Koppelen…');
+      const r = await connectSheet(parsed.url, parsed.token);
+      if (!r.ok) renderConnectCard();
+    }
+    if (e.target.id === 'copy-script') {
+      try {
+        await navigator.clipboard.writeText(scriptText || await loadScriptText());
+        e.target.textContent = tr('✓ Gekopieerd — plak in Apps Script');
+      } catch { window.open('apps-script/Code.gs', '_blank'); }
+    }
+  });
+
   /* ---------- persoonlijke instellingen-link ---------- */
   // Adressen, auto en Sheet-koppeling staan niet in de openbare code maar in een
   // link (…/#setup=…). Het deel na # wordt nooit naar de server gestuurd.
@@ -959,9 +1089,12 @@
     };
     return location.origin + location.pathname + '#setup=' + b64enc(cfg);
   }
-  $('#setup-load').addEventListener('click', () => {
-    if (importSetup($('#setup-input').value)) { $('#setup-input').value = ''; renderSettings(); }
-    else if (!/setup=/.test($('#setup-input').value)) toast(tr('Plak de volledige link (met #setup=…)'));
+  $('#setup-load').addEventListener('click', async () => {
+    const v = $('#setup-input').value;
+    const parsed = !/setup=/.test(v) && parseConnect(v);
+    if (parsed) { const r = await connectSheet(parsed.url, parsed.token); if (r.ok) { $('#setup-input').value = ''; renderSettings(); } return; }
+    if (importSetup(v)) { $('#setup-input').value = ''; renderSettings(); }
+    else if (!/setup=/.test(v)) toast(tr('Plak de volledige link (met #setup=…)'));
   });
   $('#setup-copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(setupLink()); toast(tr('Link gekopieerd — bewaar of stuur hem privé')); }
@@ -994,10 +1127,13 @@
   });
 
   /* ---------- start ---------- */
-  if (/setup=/.test(location.hash)) {
+  if (/setup=|connect=/.test(location.hash)) {
     const h = location.hash;
     history.replaceState(null, '', location.pathname + location.search);
-    setTimeout(() => importSetup(h), 0);
+    setTimeout(() => {
+      const parsed = /connect=/.test(h) && parseConnect(h);
+      if (parsed) connectSheet(parsed.url, parsed.token); else importSetup(h);
+    }, 0);
   }
   if (!state.settings.uiLang) state.settings.uiLang = /^nl/i.test(navigator.language || '') ? 'nl' : 'en';
   I18N.setLang(state.settings.uiLang);

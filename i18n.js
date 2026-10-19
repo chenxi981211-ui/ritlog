@@ -166,6 +166,28 @@
     'Plak de volledige link (met #setup=…)': 'Paste the full link (with #setup=…)',
     'Link gekopieerd — bewaar of stuur hem privé': 'Link copied — keep it or send it privately',
     'Kopieer deze link:': 'Copy this link:',
+    'Rit {n}': 'Trip {n}',
+    // Koppelen met Google Sheet
+    'Koppel-link uit de Google Sheet (menu Ritlog → Telefoon koppelen).': 'Connect link from the Google Sheet (menu Ritlog → Connect phone).',
+    'Koppel-link': 'Connect link',
+    'Geavanceerd': 'Advanced',
+    'Code (token, optioneel)': 'Code (token, optional)',
+    'Koppel je Google Sheet': 'Connect your Google Sheet',
+    'Scan de QR-code die je Sheet laat zien, of plak de koppel-link hier.': 'Scan the QR code your Sheet shows, or paste the connect link here.',
+    'Plak koppel-link…': 'Paste connect link…',
+    'Koppelen': 'Connect',
+    'Koppelen…': 'Connecting…',
+    'Eerste keer? 3 stappen op de computer': 'First time? 3 steps on a computer',
+    'Open je Google Sheet → <b>Extensies → Apps Script</b>. Wis alles, plak het script en klik op <b>Opslaan</b>.': 'Open your Google Sheet → <b>Extensions → Apps Script</b>. Delete everything, paste the script and click <b>Save</b>.',
+    'Kopieer script': 'Copy script',
+    '✓ Gekopieerd — plak in Apps Script': '✓ Copied — paste into Apps Script',
+    'Klik <b>Implementeren → Nieuwe implementatie</b> → type <b>Web-app</b>. Zet <b>Wie heeft toegang</b> op <b>Iedereen</b> → <b>Implementeren</b> → geef toestemming.': 'Click <b>Deploy → New deployment</b> → type <b>Web app</b>. Set <b>Who has access</b> to <b>Anyone</b> → <b>Deploy</b> → allow access.',
+    'Klik op de <b>Web-app-link</b> en scan de QR-code met je iPhone. Klaar!': 'Click the <b>Web app link</b> and scan the QR code with your iPhone. Done!',
+    'Zegt Google “app niet geverifieerd”? Kies <b>Geavanceerd → Ga naar … (onveilig)</b>. Dat is normaal voor je eigen script.': 'Google says “app isn’t verified”? Choose <b>Advanced → Go to … (unsafe)</b>. That’s normal for your own script.',
+    'Gekoppeld met Google Sheet ✓': 'Connected to Google Sheet ✓',
+    'Kon de Sheet niet bereiken. Staat "Wie heeft toegang" op "Iedereen"?': 'Couldn’t reach the Sheet. Is “Who has access” set to “Anyone”?',
+    'Dat lijkt geen koppel-link. Kopieer hem van de pagina met de QR-code.': 'That doesn’t look like a connect link. Copy it from the page with the QR code.',
+    'Thuis, werk en auto overgenomen uit je Sheet ✓': 'Home, work and car taken from your Sheet ✓',
   };
 
   let lang = 'nl';
