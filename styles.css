@@ -264,3 +264,18 @@ dialog label { margin-top: 10px; }
 .connect-card .btn.small { margin-top: 6px; }
 .connect-card details { margin-top: 12px; }
 .connect-card summary { color: var(--primary); font-weight: 600; cursor: pointer; }
+
+/* Datum + rit-nummer */
+.date-ride { display: grid; grid-template-columns: minmax(0, 1fr) 140px; gap: 10px; }
+.date-ride label { margin-top: 0 !important; }
+.stepper { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; background: var(--surface-2); border-radius: 10px; }
+.stepper input { text-align: center; font-weight: 700; font-size: 18px; background: transparent; padding: 0; min-height: 44px; }
+.stepper input:focus { background: transparent; border-color: transparent; }
+.stepper button { height: 44px; border: 0; background: transparent; color: var(--primary); font-size: 22px; font-weight: 600; cursor: pointer; }
+.day-rides { margin-top: 10px; font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+.day-rides:empty { display: none; }
+.day-rides .rides { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ride-chip { background: var(--surface-2); color: var(--text); border-radius: 999px; padding: 3px 10px; font-size: 13px; white-space: nowrap; }
+.ride-chip b { color: var(--primary); margin-right: 4px; }
+.day-rides .use-gap { border: 1px dashed var(--warn); background: var(--warn-soft); color: var(--warn); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.day-rides .warn { color: var(--warn); font-weight: 600; }

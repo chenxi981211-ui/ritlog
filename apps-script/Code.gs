@@ -97,19 +97,52 @@ function list_(sheet, cols, limit) {
 
 function add_(sheet, cols, trip) {
   const lastCol = sheet.getLastColumn();
-  const hasTemplate = sheet.getLastRow() >= 2;
-  sheet.insertRowBefore(2);
+  const r = insertPosition_(sheet, cols, trip);
+  sheet.insertRowBefore(r);
+  // Opmaak (en eventuele formules) overnemen van een naburige rit
+  const t = isDataRow_(sheet, cols, r + 1) ? r + 1 : (r - 1 >= 2 && isDataRow_(sheet, cols, r - 1) ? r - 1 : 0);
   let templFormulas = [];
-  if (hasTemplate) {
-    // Opmaak (en eventuele formules) overnemen van de vorige bovenste rit, nu rij 3
-    const templ = sheet.getRange(3, 1, 1, lastCol);
-    templ.copyTo(sheet.getRange(2, 1, 1, lastCol), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  if (t) {
+    const templ = sheet.getRange(t, 1, 1, lastCol);
+    templ.copyTo(sheet.getRange(r, 1, 1, lastCol), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
     templFormulas = templ.getFormulasR1C1()[0];
   }
-  writeTrip_(sheet, cols, 2, trip, true, templFormulas);
-  fixTotals_(sheet, lastCol);
+  writeTrip_(sheet, cols, r, trip, true, templFormulas);
+  fixTotals_(sheet, cols, lastCol);
   SpreadsheetApp.flush();
-  return rowObj_(sheet.getRange(2, 1, 1, lastCol).getDisplayValues()[0], cols, 2);
+  return rowObj_(sheet.getRange(r, 1, 1, lastCol).getDisplayValues()[0], cols, r);
+}
+
+// Nieuwste ritten staan bovenaan: sorteer op datum, dan rit-nr (aflopend).
+// Een later ingevulde rit (bijv. vergeten rit 2) komt zo op de juiste plek.
+function insertPosition_(sheet, cols, trip) {
+  const last = sheet.getLastRow();
+  if (last < 2 || !cols.date) return 2;
+  const values = sheet.getRange(2, 1, last - 1, sheet.getLastColumn()).getDisplayValues();
+  const key = sortKey_(trip.date, trip.tripNo);
+  let lastData = 1;
+  for (let i = 0; i < values.length; i++) {
+    const d = values[i][cols.date - 1];
+    if (!d) continue;
+    lastData = i + 2;
+    const rk = sortKey_(d, cols.tripNo ? values[i][cols.tripNo - 1] : 0);
+    if (rk < key) return i + 2;
+  }
+  return lastData + 1;
+}
+
+function sortKey_(date, tripNo) {
+  let y, m, d;
+  let x = String(date || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (x) { y = +x[1]; m = +x[2]; d = +x[3]; }
+  else if ((x = String(date || '').match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/))) { d = +x[1]; m = +x[2]; y = +x[3]; }
+  else return 0;
+  return (y * 10000 + m * 100 + d) * 1000 + (parseInt(String(tripNo || '').replace(/\D/g, ''), 10) || 0);
+}
+
+function isDataRow_(sheet, cols, r) {
+  if (r < 2 || r > sheet.getLastRow() || !cols.date) return false;
+  return sheet.getRange(r, cols.date).getDisplayValue() !== '';
 }
 
 function update_(sheet, cols, orig, trip) {
@@ -157,14 +190,16 @@ function writeTrip_(sheet, cols, r, trip, isNew, templFormulas) {
 
 // Totaalrij onderaan (bijv. =SUM(F2:F22)) weer laten beginnen bij rij 2,
 // want een rij invoegen boven rij 2 schuift het bereik naar F3.
-function fixTotals_(sheet, lastCol) {
+// Totaalrij onderaan (bijv. =SUM(E2:E28)): laat het bereik altijd alle ritten
+// omvatten, van rij 2 tot de rij boven het totaal, waar de nieuwe rit ook staat.
+function fixTotals_(sheet, cols, lastCol) {
   const last = sheet.getLastRow();
-  if (last <= 3) return;
-  const range = sheet.getRange(last, 1, 1, lastCol);
-  const formulas = range.getFormulas()[0];
+  if (last <= 3 || isDataRow_(sheet, cols, last)) return;
+  const formulas = sheet.getRange(last, 1, 1, lastCol).getFormulas()[0];
   formulas.forEach((f, i) => {
     if (!f) return;
-    const fixed = f.replace(/(\$?)([A-Z]{1,3})(\$?)3:(\$?)([A-Z]{1,3})(\$?)(\d+)/g, (m, d1, a, d2, d3, b, d4, n) => (a === b ? d1 + a + d2 + '2:' + d3 + b + d4 + n : m));
+    const fixed = f.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+):(\$?)([A-Z]{1,3})(\$?)(\d+)/g,
+      (m, d1, a, d2, n1, d3, b, d4) => (a === b && +n1 <= 3 ? d1 + a + d2 + '2:' + d3 + b + d4 + (last - 1) : m));
     if (fixed !== f) sheet.getRange(last, i + 1).setFormula(fixed);
   });
 }

@@ -34,7 +34,7 @@
         <span class="mic" aria-hidden="true"></span>
         <span class="voice-label">
           <strong>Inspreken</strong>
-          <small id="voice-hint" data-dyn>Bijv. “gisteren van werk naar Coolsingel 40 Rotterdam van 5 tot half 6”</small>
+          <small id="voice-hint" data-dyn>Bijv. “gisteren rit 2 van werk naar Coolsingel 40 Rotterdam”</small>
         </span>
       </button>
       <div class="voice-panel hidden" id="voice-panel">
@@ -72,10 +72,19 @@
           <input id="f-desc" name="desc" placeholder="Bijv. Van huis naar werk">
         </div>
 
-        <div class="card grid3">
-          <div><label for="f-date">Datum</label><input id="f-date" name="date" type="date" required></div>
-          <div><label for="f-start">Start</label><input id="f-start" name="start" type="time" required></div>
-          <div><label for="f-end">Eind</label><input id="f-end" name="end" type="time" required></div>
+        <div class="card">
+          <div class="date-ride">
+            <div><label for="f-date">Datum</label><input id="f-date" name="date" type="date" required></div>
+            <div>
+              <label for="f-tripNo">Rit-nr</label>
+              <div class="stepper">
+                <button type="button" data-step="-1" aria-label="Lager rit-nummer">−</button>
+                <input id="f-tripNo" name="tripNo" type="text" inputmode="numeric" required>
+                <button type="button" data-step="1" aria-label="Hoger rit-nummer">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="day-rides" id="day-rides" data-dyn></div>
         </div>
 
         <div class="card">

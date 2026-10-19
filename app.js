@@ -5,7 +5,7 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
-  const APP_VERSION = '2026-10-19.2';
+  const APP_VERSION = '2026-10-19.3';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -14,8 +14,7 @@
 
   // Sheet-kolommen in dezelfde volgorde als de Google Sheet
   const COLUMNS = [
-    ['ts', 'Tijdstempel'], ['desc', 'Beschrijving'], ['date', 'Datum'], ['tripNo', 'Rit-nr'], ['start', 'Starttijd'],
-    ['end', 'Eindtijd'], ['km', 'Afstand (km)'], ['detourBiz', 'I.v.t. Zakelijke Omrijkilometers'],
+    ['ts', 'Tijdstempel'], ['desc', 'Beschrijving'], ['date', 'Datum'], ['tripNo', 'Rit-nr'], ['km', 'Afstand (km)'], ['detourBiz', 'I.v.t. Zakelijke Omrijkilometers'],
     ['detourPriv', 'I.v.t. Privé Omrijkilometers'], ['odoStart', 'Beginstand km-teller'],
     ['odoEnd', 'Eindstand km-teller'], ['fee', 'Vergoeding'], ['from', 'Vertrekadres'],
     ['to', 'Aankomstadres'], ['type', 'Type rit'], ['car', 'Auto'], ['plate', 'Kenteken'], ['driver', 'Rijder'],
@@ -106,7 +105,7 @@
   const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { console.warn(e); } };
 
   const liveTrips = () => state.trips.filter((t) => t.sync !== 'delete');
-  const sortKey = (t) => t.date + (t.start || '') + String(t.tripNo || 0).padStart(3, '0');
+  const sortKey = (t) => t.date + String(t.tripNo || 0).padStart(3, '0');
   const sortTrips = (arr) => arr.sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
   const placeByAddress = (addr) => state.places.find((p) => norm(p.address) === norm(addr));
   const placeByRole = (role) => state.places.find((p) => p.role === role);
@@ -198,7 +197,7 @@
   /* ---------- trip form ---------- */
   const form = $('#trip-form');
   const F = (name) => form.elements[name];
-  let descDirty = false, odoEndDirty = false, editingId = null, distanceReq = 0;
+  let descDirty = false, odoEndDirty = false, tripNoDirty = false, editingId = null, distanceReq = 0;
 
   function autoDesc() {
     const from = placeByAddress(F('from').value), to = placeByAddress(F('to').value);
@@ -225,15 +224,40 @@
     const start = parseInt0(F('odoStart').value), km = parseDec(F('km').value);
     F('odoEnd').value = start && km ? fmtOdo(start + Math.round(km)) : '';
   }
-  function setTimesForDuration(min) {
-    if (!min) return;
-    if (editingId) return;
-    // Standaard: rit is net afgelopen → eindtijd nu, starttijd terugrekenen.
-    const isToday = F('date').value === todayISO();
-    const end = toMin(F('end').value) ?? round5(nowMin());
-    if (isToday && !F('end').dataset.touched) F('end').value = fromMin(round5(nowMin()));
-    if (!F('start').dataset.touched) F('start').value = fromMin(round5((toMin(F('end').value) ?? end) - min));
+  /* Rit-nummer: per dag 1, 2, 3 … (1 = meestal huis → werk, 2 = werk → huis) */
+  const ridesOn = (date, exceptId) => liveTrips().filter((x) => x.date === date && x.id !== exceptId)
+    .sort((a, b) => (a.tripNo || 0) - (b.tripNo || 0));
+  const nextTripNo = (date, exceptId) => ridesOn(date, exceptId).reduce((m, x) => Math.max(m, x.tripNo || 0), 0) + 1;
+  function setTripNo(n) {
+    F('tripNo').value = Math.max(1, Math.min(20, n || 1));
+    renderDayRides();
   }
+  function autoTripNo() { if (!tripNoDirty) setTripNo(nextTripNo(F('date').value, editingId)); else renderDayRides(); }
+  function renderDayRides() {
+    const box = $('#day-rides');
+    const date = F('date').value;
+    if (!date) { box.innerHTML = ''; return; }
+    const rides = ridesOn(date, editingId);
+    const cur = parseInt0(F('tripNo').value);
+    if (!rides.length) { box.innerHTML = esc(tr('Nog geen ritten op deze dag — dit wordt rit 1.')); return; }
+    const used = new Set(rides.map((r) => r.tripNo).filter(Boolean));
+    const max = Math.max(0, ...used);
+    const gaps = [];
+    for (let n = 1; n < max; n++) if (!used.has(n)) gaps.push(n);
+    box.innerHTML = `<div class="rides"><span>${esc(tr('Al op deze dag:'))}</span>${rides.map((r) =>
+      `<span class="ride-chip"><b>${r.tripNo || '?'}</b>${esc(placeName(r.from))} → ${esc(placeName(r.to))}</span>`).join('')}</div>`
+      + (cur && used.has(cur) ? `<div class="warn">${esc(tr('Rit {n} bestaat al op deze dag', { n: cur }))}</div>` : '')
+      + (gaps.length ? `<div class="rides">${gaps.map((n) => `<button type="button" class="use-gap" data-use="${n}">${esc(tr('Rit {n} ontbreekt — gebruiken', { n }))}</button>`).join('')}</div>` : '');
+  }
+  $('#day-rides').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-use]');
+    if (b) { tripNoDirty = true; setTripNo(+b.dataset.use); }
+  });
+  $$('[data-step]').forEach((b) => b.addEventListener('click', () => {
+    tripNoDirty = true; setTripNo((parseInt0(F('tripNo').value) || 0) + Number(b.dataset.step));
+  }));
+  F('tripNo').addEventListener('input', () => { tripNoDirty = true; renderDayRides(); });
+  F('date').addEventListener('change', autoTripNo);
 
   async function updateDistance(force = false) {
     const from = F('from').value.trim(), to = F('to').value.trim();
@@ -246,7 +270,6 @@
       F('km').value = fmtKm(known.km);
       hint.textContent = tr('Op basis van eerdere ritten');
       hint.classList.remove('warn');
-      setTimesForDuration(known.min);
       updateOdoEnd(); updateFee();
       return;
     }
@@ -257,8 +280,7 @@
       const r = await routeDistance(from, to);
       if (req !== distanceReq) return;
       F('km').value = fmtKm(r.km);
-      hint.textContent = tr('Berekend via snelste route (~{min} min) — pas aan indien nodig', { min: r.min });
-      setTimesForDuration(r.min);
+      hint.textContent = tr('Berekend via snelste route — pas aan indien nodig');
       updateOdoEnd(); updateFee();
     } catch (err) {
       if (req !== distanceReq) return;
@@ -268,14 +290,11 @@
   }
 
   function resetForm(prefill = {}) {
-    editingId = null; descDirty = false; odoEndDirty = false;
+    editingId = null; descDirty = false; odoEndDirty = false; tripNoDirty = false;
     form.reset();
     F('id').value = '';
-    delete F('start').dataset.touched; delete F('end').dataset.touched;
     const s = state.settings;
     F('date').value = todayISO();
-    F('end').value = fromMin(round5(nowMin()));
-    F('start').value = fromMin(round5(nowMin() - 30));
     F('car').value = s.car; F('plate').value = s.plate; F('driver').value = s.driver;
     F('odoStart').value = fmtOdo(latestOdo());
     setType(s.defaultType);
@@ -286,6 +305,7 @@
     $('#repeat-btn').classList.add('hidden');
     Object.entries(prefill).forEach(([k, v]) => { if (F(k) && v != null) F(k).value = v; });
     if (prefill.type) setType(prefill.type);
+    autoTripNo();
     updateFee();
     if (F('from').value && F('to').value) updateDistance();
   }
@@ -299,16 +319,16 @@
     if (asEdit) {
       editingId = t.id;
       F('id').value = t.id;
-      ['date', 'start', 'end', 'odoStart', 'odoEnd'].forEach((k) => { F(k).value = vals[k] ?? ''; });
+      ['date', 'odoStart', 'odoEnd'].forEach((k) => { F(k).value = vals[k] ?? ''; });
       odoEndDirty = true;
+      tripNoDirty = true;
+      setTripNo(t.tripNo || nextTripNo(t.date, t.id));
       $('#save-btn').textContent = tr('Wijziging opslaan');
       $('#delete-btn').classList.remove('hidden');
       $('#cancel-edit-btn').classList.remove('hidden');
       $('#repeat-btn').classList.remove('hidden');
     } else {
-      const dur = (toMin(t.end) - toMin(t.start) + 1440) % 1440 || 30;
-      F('end').value = fromMin(round5(nowMin()));
-      F('start').value = fromMin(round5(nowMin() - dur));
+      autoTripNo();
       updateOdoEnd();
     }
     updateFee();
@@ -319,7 +339,7 @@
     const v = (k) => F(k).value.trim();
     const km = parseDec(v('km'));
     return {
-      desc: v('desc'), date: v('date'), start: v('start'), end: v('end'), km,
+      desc: v('desc'), date: v('date'), tripNo: parseInt0(v('tripNo')) || nextTripNo(v('date'), editingId), km,
       detourBiz: parseDec(v('detourBiz')), detourPriv: parseDec(v('detourPriv')),
       odoStart: parseInt0(v('odoStart')), odoEnd: parseInt0(v('odoEnd')),
       fee: km ? Math.round(km * state.settings.rate * 100) / 100 : 0,
@@ -335,12 +355,10 @@
     if (!data.from) missing.push(tr('vertrekadres'));
     if (!data.to) missing.push(tr('aankomstadres'));
     if (!data.date) missing.push(tr('datum'));
-    if (!data.start || !data.end) missing.push(tr('tijden'));
     if (!data.km) missing.push(tr('afstand'));
     if (missing.length) return toast(tr('Vul nog in: {f}', { f: missing.join(', ') }));
 
-    const dur = (toMin(data.end) - toMin(data.start) + 1440) % 1440;
-    learnRoute(data.from, data.to, data.km, dur || null);
+    learnRoute(data.from, data.to, data.km, null);
     const stamp = new Date().toISOString();
 
     if (editingId) {
@@ -352,8 +370,7 @@
       }
       toast(tr('Rit bijgewerkt'));
     } else {
-      const tripNo = liveTrips().filter((x) => x.date === data.date).reduce((m, x) => Math.max(m, x.tripNo || 0), 0) + 1;
-      state.trips.push({ id: uid(), ...data, tripNo, created: stamp, modified: stamp, sync: state.settings.scriptUrl ? 'add' : 'local' });
+      state.trips.push({ id: uid(), ...data, created: stamp, modified: stamp, sync: state.settings.scriptUrl ? 'add' : 'local' });
       toast(state.settings.scriptUrl ? tr('Rit opgeslagen ✓') : tr('Rit opgeslagen op deze telefoon'));
     }
     if (data.odoEnd && data.odoEnd > (state.lastOdo || 0)) state.lastOdo = data.odoEnd;
@@ -387,7 +404,6 @@
   F('odoEnd').addEventListener('input', () => { odoEndDirty = true; });
   F('odoStart').addEventListener('input', updateOdoEnd);
   F('km').addEventListener('input', () => { updateOdoEnd(); updateFee(); });
-  ['start', 'end'].forEach((k) => F(k).addEventListener('input', () => { F(k).dataset.touched = '1'; }));
   $('#type-seg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setType(b.dataset.type); });
   $('#calc-btn').addEventListener('click', () => updateDistance(true));
   $('#swap-btn').addEventListener('click', () => {
@@ -456,12 +472,22 @@
     const add = (from, to, label, tag) => {
       if (!from || !to || norm(from) === norm(to) || list.some((r) => norm(r.from) === norm(from) && norm(r.to) === norm(to))) return;
       const k = knownRoute(from, to) || knownRoute(to, from);
-      list.push({ from, to, label, tag, km: k?.km, min: k?.min });
+      list.push({ from, to, label, tag, km: k?.km });
     };
-    const morning = new Date().getHours() < 13;
+    // Rit 1 van de dag = meestal huis → werk; na een rit naar werk volgt werk → huis
+    const lastToday = ridesOn(todayISO()).pop();
+    const atWork = lastToday ? placeByAddress(lastToday.to)?.role === 'work' : false;
     if (home && work) {
-      if (morning) { add(home.address, work.address, tr('Huis → Werk')); add(work.address, home.address, tr('Werk → Huis')); }
-      else { add(work.address, home.address, tr('Werk → Huis')); add(home.address, work.address, tr('Huis → Werk')); }
+      if (atWork) { add(work.address, home.address, tr('Werk → Huis')); add(home.address, work.address, tr('Huis → Werk')); }
+      else { add(home.address, work.address, tr('Huis → Werk')); add(work.address, home.address, tr('Werk → Huis')); }
+    }
+    // Ergens anders geëindigd → terug naar huis als tweede voorstel
+    if (lastToday && home && !atWork && norm(lastToday.to) !== norm(home.address)) {
+      const back = { from: lastToday.to, to: home.address };
+      if (!list.some((r) => norm(r.from) === norm(back.from) && norm(r.to) === norm(back.to))) {
+        const k = knownRoute(back.from, back.to) || knownRoute(back.to, back.from);
+        list.splice(1, 0, { ...back, label: placeName(back.from) + ' → ' + tr('Huis'), tag: tr('Terug'), km: k?.km });
+      }
     }
     // Vaakst gereden andere routes van de laatste 60 dagen
     const since = isoDate(new Date(Date.now() - 60 * 864e5));
@@ -479,11 +505,12 @@
   }
   function renderQuick() {
     const routes = quickRoutes();
+    const next = nextTripNo(todayISO());
     $('#quick-routes').innerHTML = routes.map((r, i) => `
       <button type="button" class="quick-btn${i === 0 ? ' hero' : ''}" data-q="${i}">
-        ${i === 0 ? `<span class="tag">${tr('Voorstel')}</span>` : r.tag ? `<span class="tag">${esc(r.tag)}</span>` : ''}
+        ${i === 0 ? `<span class="tag">${tr('Voorstel · rit {n}', { n: next })}</span>` : r.tag ? `<span class="tag">${esc(r.tag)}</span>` : ''}
         <strong>${esc(r.label)}</strong>
-        <small>${r.km ? fmtKm(r.km) + ' km' : tr('afstand berekenen')}${r.min ? ' · ~' + r.min + ' min' : ''}</small>
+        <small>${r.km ? fmtKm(r.km) + ' km' : tr('afstand berekenen')}</small>
       </button>`).join('');
     $('#quick-routes').onclick = (e) => {
       const b = e.target.closest('[data-q]'); if (!b) return;
@@ -502,9 +529,17 @@
 
   function parseSpeech(raw) {
     let text = ' ' + raw.toLowerCase().replace(/[“”"]/g, '') + ' ';
+    const ORD = { eerste: 1, tweede: 2, derde: 3, vierde: 4, vijfde: 5, zesde: 6, first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6 };
+    const ridePre = { ...ORD };
+    let rm = text.match(new RegExp(`\\b(${Object.keys(ridePre).join('|')})\\s+(?:rit|ride|trip)\\b`));
+    let tripNo = rm ? ridePre[rm[1]] : null;
+    if (rm) text = text.replace(rm[0], ' ');
     Object.entries(NUMWORDS).forEach(([w, n]) => { text = text.replace(new RegExp(`(\\s)${w}(?=[\\s,.])`, 'g'), `$1${n}`); });
     const out = {};
     const cut = (re) => { text = text.replace(re, ' '); };
+    if (!tripNo && (rm = text.match(/\b(?:rit|ride|trip)(?:\s*(?:nummer|nr\.?|number|no\.?))?\s*(\d{1,2})\b/))) { tripNo = +rm[1]; cut(rm[0]); }
+    if (!tripNo && (rm = text.match(/\b(?:rit|ride|trip)\s+(een|één|one)\b/))) { tripNo = 1; cut(rm[0]); }
+    if (tripNo) out.tripNo = tripNo;
 
     // Datum
     const d = new Date();
@@ -599,24 +634,13 @@
     if (from) F('from').value = from;
     if (to) F('to').value = to;
     if (p.date) F('date').value = p.date;
-    if (p.start) { F('start').value = p.start; F('start').dataset.touched = '1'; }
-    if (p.end) { F('end').value = p.end; F('end').dataset.touched = '1'; }
-    if (p.start && !p.end) delete F('end').dataset.touched;
+    autoTripNo();
+    if (p.tripNo) { tripNoDirty = true; setTripNo(p.tripNo); }
     if (p.type) setType(p.type);
     if (p.odoStart) F('odoStart').value = fmtOdo(p.odoStart);
     if (p.desc) { F('desc').value = p.desc; descDirty = true; }
     await updateDistance();
     if (p.km) { F('km').value = fmtKm(p.km); $('#km-hint').textContent = tr('Ingesproken afstand'); updateOdoEnd(); updateFee(); }
-    // Alleen starttijd genoemd → eindtijd = start + reistijd
-    if (p.start && !p.end) {
-      const k = knownRoute(F('from').value, F('to').value);
-      F('end').value = fromMin(toMin(p.start) + (k?.min || 30));
-    }
-    // "van 7 tot half 8" vandaag terwijl het nog ochtend is → ochtend, niet avond
-    if (F('date').value === todayISO() && toMin(F('start').value) > nowMin() + 30 && toMin(F('start').value) >= 13 * 60) {
-      F('start').value = fromMin(toMin(F('start').value) - 720);
-      F('end').value = fromMin(toMin(F('end').value) - 720);
-    }
     const missing = [!F('from').value && tr('van'), !F('to').value && tr('naar')].filter(Boolean);
     if (!missing.length) { $('#voice-panel').classList.add('hidden'); $('#voice-text').value = ''; }
     toast(missing.length ? tr('Niet verstaan: {f} — vul even aan', { f: missing.join(' ' + tr('en') + ' ') }) : tr('Ingevuld — controleer en sla op'));
@@ -693,7 +717,7 @@
 
   function rowToTrip(r) {
     const t = {
-      desc: r.desc || '', date: parseSheetDate(r.date), tripNo: parseInt0(r.tripNo), start: parseSheetTime(r.start), end: parseSheetTime(r.end),
+      desc: r.desc || '', date: parseSheetDate(r.date), tripNo: parseInt0(r.tripNo),
       km: parseDec(r.km), detourBiz: parseDec(r.detourBiz), detourPriv: parseDec(r.detourPriv),
       odoStart: parseInt0(r.odoStart), odoEnd: parseInt0(r.odoEnd), fee: parseDec(r.fee),
       from: (r.from || '').trim(), to: (r.to || '').trim(), type: r.type || '', car: r.car || '', plate: r.plate || '', driver: r.driver || '',
@@ -713,8 +737,8 @@
       const fromSheet = res.rows.map(rowToTrip).filter((t) => t.date && !pendingIds.has(t.id));
       const locals = state.trips.filter((t) => t.sync === 'local');
       state.trips = [...fromSheet, ...pending, ...locals];
-      // Afstanden en reistijden leren van oudste naar nieuwste
-      [...fromSheet].reverse().forEach((t) => learnRoute(t.from, t.to, t.km, (toMin(t.end) - toMin(t.start) + 1440) % 1440 || null));
+      // Afstanden leren van oudste naar nieuwste
+      [...fromSheet].reverse().forEach((t) => learnRoute(t.from, t.to, t.km, null));
       state.lastPull = new Date().toISOString();
       const learned = inferSetup(fromSheet);
       save();
@@ -778,7 +802,7 @@
         <span class="status ${statusClass(t)}" title="${esc(t.error || t.sync)}"></span>
         <span class="t-main">
           <div class="t-route">${esc(placeName(t.from))} → ${esc(placeName(t.to))}</div>
-          <div class="t-sub">${t.start ? `${esc(t.start)}–${esc(t.end)}` : tr('Rit {n}', { n: t.tripNo || '?' })} · ${esc(t.desc || '')}</div>
+          <div class="t-sub">${tr('Rit {n}', { n: t.tripNo || '?' })} · ${esc(t.desc || '')}</div>
         </span>
         <span class="t-km">${fmtKm(t.km)} km<small>${fmtEur(t.fee)}</small></span>
       </button>`;
@@ -821,7 +845,7 @@
   function exportRows() {
     const key = $('#summary-month').value;
     return sortTrips(liveTrips().filter((t) => monthKey(t.date) === key)).map((t) => ({
-      ts: '', desc: t.desc, date: sheetDate(t.date), tripNo: t.tripNo || '', start: t.start, end: t.end,
+      ts: '', desc: t.desc, date: sheetDate(t.date), tripNo: t.tripNo || '',
       km: t.km != null ? fmtKm(t.km) + ' km' : '', detourBiz: t.detourBiz ? fmtKm(t.detourBiz) + ' km' : '',
       detourPriv: t.detourPriv ? fmtKm(t.detourPriv) + ' km' : '', odoStart: t.odoStart ? fmtOdo(t.odoStart) + ' km' : '',
       odoEnd: t.odoEnd ? fmtOdo(t.odoEnd) + ' km' : '', fee: fmtEur(t.fee), from: t.from, to: t.to, type: t.type, car: t.car, plate: t.plate, driver: t.driver,
@@ -1106,8 +1130,8 @@
   /* ---------- taal / language ---------- */
   function renderVoiceHint() {
     const ex = state.settings.voiceLang === 'en-US'
-      ? 'yesterday from work to Coolsingel 40 Rotterdam from 5 to 5:30'
-      : 'gisteren van werk naar Coolsingel 40 Rotterdam van 5 tot half 6';
+      ? 'yesterday ride 2 from work to Coolsingel 40 Rotterdam'
+      : 'gisteren rit 2 van werk naar Coolsingel 40 Rotterdam';
     $('#voice-hint').textContent = tr('Bijv. “{x}”', { x: ex });
   }
   function applyLang() {
