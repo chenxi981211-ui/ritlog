@@ -8,15 +8,15 @@ A small web app for iPhone that logs trips straight into the existing Google She
 |---|---|
 | **Ride number (Rit-nr)** | Each day's rides are numbered 1, 2, 3… The next number is filled in automatically, the rides already logged that day are listed, and a missing number (e.g. a forgotten ride 2) can be used with one tap. It's placed in the right row of the Sheet, even when logged later. |
 | **One-tap trips** | Big buttons for *Huis → Werk* / *Werk → Huis*. The suggestion follows the day's rides: no ride yet → Home → Work, after a ride to work → Work → Home. His most frequent routes appear too. |
-| **Saved places** | Home, work, colleague and clients, each with nicknames for voice input. Edit them under *Instellingen*. |
+| **Saved places** | Home, work, colleague and clients, each with optional search words. Edit them under *Instellingen*. |
 | **Automatic distance** | Distances he has driven before come from his history. New routes are calculated with PDOK (Dutch address lookup) and OSRM (route planner), both free with no key. |
 | **Smart defaults** | Date = today, ride number = next for that day. The next trip starts at the last destination. Odometer start = last odometer end, and end = start + km. Description, car, plate, driver and trip type are filled in. |
-| **Voice input** | Example: *"gisteren rit 2 van werk naar Coolsingel 40 Rotterdam, klacht afhandelen bij klant"*. It understands dates (vandaag/gisteren/maandag/15 oktober), ride numbers (rit 3, tweede rit), places, odometer readings, privé/zakelijk and a description. |
 | **Current location** | The ⌖ button fills in the address where he is now. |
 | **Google Sheet sync** | Each trip is inserted in date and ride-number order (newest on top, like now), with the same formatting. The totals row at the bottom keeps counting. Editing or deleting a trip in the app also changes it in the Sheet. |
+| **Refresh** | Tap the ↻ status pill at the top to send anything waiting and reload every trip from the Sheet (handy after editing the Sheet). The app also refreshes by itself each time it's opened. |
 | **Offline** | Without signal, trips are queued and sent automatically once he's online again. |
 | **Export** | CSV per month in the same columns (opens in Excel), or *copy* to paste into Google Sheets. |
-| **History & summary** | Trips per month (tap one to edit, delete or repeat it), total km, € reimbursement, business vs. private, and the most-driven routes. |
+| **History & summary** | Trips per month (tap one to edit, delete or repeat it), total km, € reimbursement, number of trips, the longest trip, and the most-driven routes. |
 | **Home screen app** | Opens full-screen like a normal app, with its own icon. |
 | **English / Dutch** | Tap **NL EN** at the top to switch the app's language. It's remembered on each phone. Anything written to the Google Sheet stays Dutch, so his records stay consistent. |
 
@@ -52,7 +52,6 @@ Live at **https://chenxi981211-ui.github.io/ritlog/**
 
 (An app on the iPhone home screen has its own storage, separate from Safari. That's why the link is pasted inside the installed app.)
 
-If speech recognition isn't available in the installed app, tapping *Inspreken* opens a text box. Use the 🎙 microphone on the iPhone keyboard there, then tap *Invullen*.
 
 ## Files
 

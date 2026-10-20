@@ -30,21 +30,6 @@
 
       <div class="quick" id="quick-routes" aria-label="Snelle ritten" data-dyn></div>
 
-      <button type="button" class="voice-btn" id="voice-btn">
-        <span class="mic" aria-hidden="true"></span>
-        <span class="voice-label">
-          <strong>Inspreken</strong>
-          <small id="voice-hint" data-dyn>Bijv. “gisteren rit 2 van werk naar Coolsingel 40 Rotterdam”</small>
-        </span>
-      </button>
-      <div class="voice-panel hidden" id="voice-panel">
-        <textarea id="voice-text" rows="2" placeholder="Tik hier en gebruik de microfoon op je toetsenbord…"></textarea>
-        <div class="row gap">
-          <button type="button" class="btn small" id="voice-apply">Invullen</button>
-          <button type="button" class="btn small ghost" id="voice-close">Sluiten</button>
-        </div>
-      </div>
-
       <form id="trip-form" autocomplete="off" novalidate>
         <input type="hidden" name="id">
         <div class="card">
@@ -52,16 +37,16 @@
             <label for="f-from">Van</label>
             <div class="input-wrap">
               <input id="f-from" name="from" placeholder="Vertrekadres" required>
-              <button type="button" class="icon-btn" data-locate="from" aria-label="Huidige locatie als vertrek">⌖</button>
+              <button type="button" class="icon-btn" data-locate="from" aria-label="Huidige locatie als vertrek"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
             </div>
             <div class="suggest hidden" data-suggest="from" data-dyn></div>
           </div>
-          <button type="button" class="swap" id="swap-btn" aria-label="Wissel van en naar">⇅</button>
+          <button type="button" class="swap" id="swap-btn" aria-label="Wissel van en naar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v15M4 8l4-4 4 4"/><path d="M16 20V5M12 16l4 4 4-4"/></svg></button>
           <div class="place-field">
             <label for="f-to">Naar</label>
             <div class="input-wrap">
               <input id="f-to" name="to" placeholder="Aankomstadres" required>
-              <button type="button" class="icon-btn" data-locate="to" aria-label="Huidige locatie als aankomst">⌖</button>
+              <button type="button" class="icon-btn" data-locate="to" aria-label="Huidige locatie als aankomst"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
             </div>
             <div class="suggest hidden" data-suggest="to" data-dyn></div>
           </div>
@@ -198,7 +183,6 @@
           <div><label for="s-plate">Kenteken</label><input id="s-plate"></div>
           <div><label for="s-driver">Rijder</label><input id="s-driver"></div>
           <div><label for="s-odo">Laatste km-stand</label><input id="s-odo" inputmode="numeric"></div>
-          <div><label for="s-lang">Taal inspreken</label><select id="s-lang"><option value="nl-NL">Nederlands</option><option value="en-US">English</option></select></div>
         </div>
         <button type="button" class="btn small" id="s-save-defaults">Opslaan</button>
       </div>
@@ -215,10 +199,10 @@
   </main>
 
   <nav class="tabbar" id="tabbar">
-    <button type="button" data-go="new" class="active"><span aria-hidden="true">＋</span>Rit</button>
-    <button type="button" data-go="trips"><span aria-hidden="true">☰</span>Ritten</button>
-    <button type="button" data-go="summary"><span aria-hidden="true">∑</span>Overzicht</button>
-    <button type="button" data-go="settings"><span aria-hidden="true">⚙</span>Instellingen</button>
+    <button type="button" data-go="new" class="active"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Rit</button>
+    <button type="button" data-go="trips"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>Ritten</button>
+    <button type="button" data-go="summary"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></svg>Overzicht</button>
+    <button type="button" data-go="settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Instellingen</button>
   </nav>
 
   <dialog id="place-dialog">
@@ -230,9 +214,9 @@
       <label for="p-address">Adres</label>
       <div class="input-wrap">
         <input id="p-address" name="address" placeholder="Straat 1, Plaats" required>
-        <button type="button" class="icon-btn" id="p-locate" aria-label="Huidige locatie">⌖</button>
+        <button type="button" class="icon-btn" id="p-locate" aria-label="Huidige locatie"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
       </div>
-      <label for="p-aliases">Ook bekend als (voor inspreken)</label>
+      <label for="p-aliases">Ook bekend als (zoekwoorden)</label>
       <input id="p-aliases" name="aliases" placeholder="bijv. huis, thuis, home">
       <label for="p-role">Rol</label>
       <select id="p-role" name="role"><option value="">—</option><option value="home">Thuis</option><option value="work">Werk</option></select>

@@ -5,7 +5,7 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
-  const APP_VERSION = '2026-10-19.3';
+  const APP_VERSION = '2026-10-20.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -21,6 +21,8 @@
   ];
 
   /* ---------- helpers ---------- */
+  let refreshing = false; // Sheet wordt opnieuw opgehaald (ververs-knop)
+  const ICON_REFRESH = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>';
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -456,13 +458,13 @@
   });
   $$('[data-locate]').forEach((btn) => btn.addEventListener('click', async () => {
     const field = btn.dataset.locate;
-    const old = btn.textContent; btn.textContent = '…';
+    btn.classList.add('busy');
     try {
       const pos = await currentPosition();
       F(field).value = await reverseGeocode(pos.lat, pos.lon);
       updateDistance();
     } catch (err) { toast(err.message); }
-    btn.textContent = old;
+    btn.classList.remove('busy');
   }));
 
   /* ---------- quick routes ---------- */
@@ -521,159 +523,6 @@
       toast(tr('Controleer en tik op “Rit opslaan”'));
     };
   }
-
-  /* ---------- voice input ---------- */
-  const NUMWORDS = { twee: 2, drie: 3, vier: 4, vijf: 5, zes: 6, zeven: 7, acht: 8, negen: 9, tien: 10, elf: 11, twaalf: 12, dertien: 13, veertien: 14, vijftien: 15, zestien: 16, zeventien: 17, achttien: 18, negentien: 19, twintig: 20, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
-  const WEEKDAYS = { zondag: 0, maandag: 1, dinsdag: 2, woensdag: 3, donderdag: 4, vrijdag: 5, zaterdag: 6, sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
-  const MONTHS = { januari: 1, februari: 2, maart: 3, april: 4, mei: 5, juni: 6, juli: 7, augustus: 8, september: 9, oktober: 10, november: 11, december: 12, january: 1, february: 2, march: 3, may: 5, june: 6, july: 7, august: 8, october: 10 };
-
-  function parseSpeech(raw) {
-    let text = ' ' + raw.toLowerCase().replace(/[“”"]/g, '') + ' ';
-    const ORD = { eerste: 1, tweede: 2, derde: 3, vierde: 4, vijfde: 5, zesde: 6, first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6 };
-    const ridePre = { ...ORD };
-    let rm = text.match(new RegExp(`\\b(${Object.keys(ridePre).join('|')})\\s+(?:rit|ride|trip)\\b`));
-    let tripNo = rm ? ridePre[rm[1]] : null;
-    if (rm) text = text.replace(rm[0], ' ');
-    Object.entries(NUMWORDS).forEach(([w, n]) => { text = text.replace(new RegExp(`(\\s)${w}(?=[\\s,.])`, 'g'), `$1${n}`); });
-    const out = {};
-    const cut = (re) => { text = text.replace(re, ' '); };
-    if (!tripNo && (rm = text.match(/\b(?:rit|ride|trip)(?:\s*(?:nummer|nr\.?|number|no\.?))?\s*(\d{1,2})\b/))) { tripNo = +rm[1]; cut(rm[0]); }
-    if (!tripNo && (rm = text.match(/\b(?:rit|ride|trip)\s+(een|één|one)\b/))) { tripNo = 1; cut(rm[0]); }
-    if (tripNo) out.tripNo = tripNo;
-
-    // Datum
-    const d = new Date();
-    let m;
-    if (/\beergisteren\b/.test(text)) { d.setDate(d.getDate() - 2); out.date = isoDate(d); cut(/\beergisteren\b/); }
-    else if (/\b(gisteren|yesterday)\b/.test(text)) { d.setDate(d.getDate() - 1); out.date = isoDate(d); cut(/\b(gisteren|yesterday)\b/); }
-    else if (/\b(vandaag|today)\b/.test(text)) { out.date = todayISO(); cut(/\b(vandaag|today)\b/); }
-    else if ((m = text.match(new RegExp(`\\b(?:op |on )?(\\d{1,2}) (${Object.keys(MONTHS).join('|')})\\b`)))) {
-      const y = d.getFullYear(); let dt = new Date(y, MONTHS[m[2]] - 1, +m[1]);
-      if (dt > new Date()) dt = new Date(y - 1, MONTHS[m[2]] - 1, +m[1]);
-      out.date = isoDate(dt); cut(m[0]);
-    } else if ((m = text.match(new RegExp(`\\b(?:afgelopen |vorige |last |on |op )?(${Object.keys(WEEKDAYS).join('|')})\\b`)))) {
-      const diff = (d.getDay() - WEEKDAYS[m[1]] + 7) % 7;
-      d.setDate(d.getDate() - diff); out.date = isoDate(d); cut(m[0]);
-    }
-
-    // Kilometerstand
-    if ((m = text.match(/\b(?:begin ?stand|kilometerstand|km-stand|km stand|teller(?:stand)?|odometer)\s*(?:is|was|:)?\s*([\d.\s]{4,9}\d)/))) {
-      out.odoStart = parseInt0(m[1]); cut(m[0]);
-    }
-    // Afstand expliciet
-    if ((m = text.match(/\b(\d+(?:[.,]\d+)?)\s*(?:km|kilometer)\b/))) { out.km = parseDec(m[1]); cut(m[0]); }
-
-    // Tijden
-    const timeRe = '(?:(?:kwart (?:over|voor)|half|quarter (?:past|to))\\s+\\d{1,2}|\\d{1,2}(?:[:.]\\d{2})?\\s*(?:uur|u|am|pm|a\\.m\\.|p\\.m\\.)?(?:\\s*\\d{2}(?=\\s))?)';
-    // Spraak zonder am/pm: "van 5 tot half 6" → middag (1–7 uur wordt 13–19 uur)
-    const toTime = (s) => {
-      s = s.trim(); let mm, h, min = 0, ampm = '';
-      if ((mm = s.match(/half\s+(\d{1,2})/))) { h = +mm[1] - 1; min = 30; }
-      else if ((mm = s.match(/(?:kwart over|quarter past)\s+(\d{1,2})/))) { h = +mm[1]; min = 15; }
-      else if ((mm = s.match(/(?:kwart voor|quarter to)\s+(\d{1,2})/))) { h = +mm[1] - 1; min = 45; }
-      else {
-        mm = s.match(/(\d{1,2})(?:[:.](\d{2}))?\s*(?:uur|u)?\s*(\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?/);
-        if (!mm) return null;
-        h = +mm[1]; min = +(mm[2] || mm[3] || 0); ampm = mm[4] || '';
-      }
-      if (/p/.test(ampm) && h < 12) h += 12;
-      if (h > 23 || min > 59) return null;
-      if (!ampm && h >= 1 && h <= 7) h += 12;
-      return fromMin(h * 60 + min);
-    };
-    if ((m = text.match(new RegExp(`\\b(?:van|tussen|from|between)\\s+(${timeRe})\\s+(?:tot|en|to|until|and|-)\\s+(${timeRe})`)))) {
-      out.start = toTime(m[1]); out.end = toTime(m[2]); cut(m[0]);
-    } else {
-      if ((m = text.match(new RegExp(`\\b(?:vertrokken|vertrek|weg|left|departed|gestart)\\s+(?:om|at)?\\s*(${timeRe})`)))) { out.start = toTime(m[1]); cut(m[0]); }
-      if ((m = text.match(new RegExp(`\\b(?:aangekomen|aankomst|tot|arrived|until)\\s+(?:om|at)?\\s*(${timeRe})`)))) { out.end = toTime(m[1]); cut(m[0]); }
-      if (!out.start && (m = text.match(new RegExp(`\\b(?:om|at)\\s+(${timeRe})`)))) { out.start = toTime(m[1]); cut(m[0]); }
-    }
-
-    // Type
-    if (/(^|[\s,])(priv[eé]|private)(?=[\s,.]|$)/.test(text)) { out.type = 'Privé'; cut(/(^|[\s,])(priv[eé]|private)(?=[\s,.]|$)/); }
-    else if (/\bzakelijk\b|\bbusiness\b/.test(text)) { out.type = 'Zakelijk'; cut(/\bzakelijk\b|\bbusiness\b/); }
-
-    // Omschrijving na "omschrijving"/"reden"/"voor"
-    if ((m = text.match(/\b(?:omschrijving|reden|description|purpose)\s*:?\s*(.+)$/))) { out.desc = m[1].trim(); cut(m[0]); }
-
-    // Plaatsen: "van X naar Y" / "from X to Y" / "naar Y"
-    text = text.replace(/\s+/g, ' ').trim();
-    let segs = text.split(/\s*,\s*/).filter((x) => x.replace(/[\s.]/g, ''));
-    let routeSeg = segs.find((s) => /\b(naar|to)\b/.test(s)) || '';
-    if ((m = routeSeg.match(/\b(?:van|vanaf|vanuit|from)\s+(.+?)\s+(?:naar|to)\s+(.+)$/))) { out.fromText = m[1]; out.toText = m[2]; }
-    else if ((m = routeSeg.match(/\b(?:naar|to)\s+(.+)$/))) { out.toText = m[1]; }
-    const rest = segs.filter((s) => s !== routeSeg).join(', ').trim();
-    if (!out.desc && rest.length > 3) out.desc = rest.charAt(0).toUpperCase() + rest.slice(1);
-    return out;
-  }
-
-  function resolvePlace(text) {
-    if (!text) return null;
-    const t = norm(text.replace(/^(het|de|mijn|the|my)\s+/, ''));
-    const hit = state.places.find((p) => norm(p.name) === t || p.aliases.some((a) => norm(a) === t))
-      || state.places.find((p) => t.includes(norm(p.name)) || p.aliases.some((a) => a.length > 3 && t.includes(norm(a))));
-    return hit ? hit.address : null;
-  }
-  async function normaliseAddress(text) {
-    try {
-      const data = await fetchJSON(`${PDOK}/free?rows=1&q=${encodeURIComponent(text)}`, {}, 6000);
-      const doc = data.response?.docs?.[0];
-      if (doc) return tidyAddress(doc.weergavenaam);
-    } catch { /* offline */ }
-    return text.replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-
-  async function applySpeech(raw) {
-    if (!raw.trim()) return;
-    const p = parseSpeech(raw);
-    const lastTo = sortTrips(liveTrips())[0]?.to;
-    let from = resolvePlace(p.fromText) || (p.fromText ? await normaliseAddress(p.fromText) : null);
-    const to = resolvePlace(p.toText) || (p.toText ? await normaliseAddress(p.toText) : null);
-    if (!from && to) from = F('from').value || lastTo || placeByRole('work')?.address;
-    if (!editingId) resetForm();
-    if (from) F('from').value = from;
-    if (to) F('to').value = to;
-    if (p.date) F('date').value = p.date;
-    autoTripNo();
-    if (p.tripNo) { tripNoDirty = true; setTripNo(p.tripNo); }
-    if (p.type) setType(p.type);
-    if (p.odoStart) F('odoStart').value = fmtOdo(p.odoStart);
-    if (p.desc) { F('desc').value = p.desc; descDirty = true; }
-    await updateDistance();
-    if (p.km) { F('km').value = fmtKm(p.km); $('#km-hint').textContent = tr('Ingesproken afstand'); updateOdoEnd(); updateFee(); }
-    const missing = [!F('from').value && tr('van'), !F('to').value && tr('naar')].filter(Boolean);
-    if (!missing.length) { $('#voice-panel').classList.add('hidden'); $('#voice-text').value = ''; }
-    toast(missing.length ? tr('Niet verstaan: {f} — vul even aan', { f: missing.join(' ' + tr('en') + ' ') }) : tr('Ingevuld — controleer en sla op'));
-  }
-
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null;
-  $('#voice-btn').addEventListener('click', () => {
-    const panel = $('#voice-panel'), btn = $('#voice-btn'), ta = $('#voice-text');
-    panel.classList.remove('hidden');
-    if (!SR) { ta.focus(); toast(tr('Tik op de microfoon op je toetsenbord om in te spreken')); return; }
-    if (rec) { rec.stop(); return; }
-    try {
-      rec = new SR();
-      rec.lang = state.settings.voiceLang;
-      rec.interimResults = true;
-      rec.continuous = false;
-      ta.value = '';
-      rec.onresult = (e) => { ta.value = [...e.results].map((r) => r[0].transcript).join(' '); };
-      rec.onerror = (e) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast(tr('Geen toegang tot microfoon — gebruik de microfoon op je toetsenbord'));
-        ta.focus();
-      };
-      rec.onend = () => {
-        btn.classList.remove('listening'); rec = null;
-        if (ta.value.trim()) applySpeech(ta.value);
-      };
-      btn.classList.add('listening');
-      rec.start();
-    } catch { rec = null; btn.classList.remove('listening'); ta.focus(); }
-  });
-  $('#voice-apply').addEventListener('click', () => applySpeech($('#voice-text').value));
-  $('#voice-close').addEventListener('click', () => { $('#voice-panel').classList.add('hidden'); rec?.abort(); });
 
   /* ---------- sync with Google Sheet ---------- */
   let flushing = false;
@@ -757,23 +606,38 @@
     const pending = state.trips.filter((t) => /add|update|delete/.test(t.sync)).length;
     const errors = state.trips.filter((t) => /^error/.test(t.sync)).length;
     const local = state.trips.filter((t) => t.sync === 'local').length;
-    pill.className = 'sync-pill';
-    if (!state.settings.scriptUrl) { pill.textContent = local ? tr('{n} lokaal', { n: local }) : tr('Niet gekoppeld'); }
-    else if (flushing) { pill.textContent = tr('Versturen…'); pill.classList.add('pending'); }
-    else if (pending) { pill.textContent = tr('{n} in wachtrij', { n: pending }) + (errors ? ' ⚠' : ''); pill.classList.add('pending'); }
-    else { pill.textContent = navigator.onLine ? tr('✓ Gesynchroniseerd') : 'Offline'; pill.classList.add('ok'); }
+    pill.className = 'sync-pill' + (refreshing ? ' spinning' : '');
+    let text, cls = '';
+    if (!state.settings.scriptUrl) text = local ? tr('{n} lokaal', { n: local }) : tr('Niet gekoppeld');
+    else if (flushing) { text = tr('Versturen…'); cls = 'pending'; }
+    else if (pending) { text = tr('{n} in wachtrij', { n: pending }) + (errors ? ' !' : ''); cls = 'pending'; }
+    else { text = navigator.onLine ? tr('Bijgewerkt') : 'Offline'; cls = 'ok'; }
+    if (cls) pill.classList.add(cls);
+    // Ververs-icoon zodra er een Sheet gekoppeld is: tikken = opnieuw ophalen
+    pill.innerHTML = (state.settings.scriptUrl ? ICON_REFRESH : '') + `<span>${esc(text)}</span>`;
+    pill.setAttribute('aria-label', state.settings.scriptUrl ? tr('Vernieuwen uit Google Sheet') + ' — ' + text : text);
     renderConnectCard();
   }
-  $('#sync-pill').addEventListener('click', () => {
+  async function refreshFromSheet() {
     if (!state.settings.scriptUrl) return go('settings');
-    const err = state.trips.find((t) => t.error);
-    if (err) toast(tr('Laatste fout: {e}', { e: err.error }), 4000);
-    flush().then(() => pull(true));
-  });
+    if (refreshing) return;
+    if (!navigator.onLine) return toast(tr('Offline — vernieuwen lukt zodra je weer internet hebt'), 3500);
+    refreshing = true; renderSyncPill();
+    try {
+      await flush();
+      await pull(false);
+      const err = state.trips.find((t) => t.error);
+      if (err) toast(tr('Laatste fout: {e}', { e: err.error }), 4000);
+    } finally {
+      refreshing = false; renderSyncPill();
+    }
+  }
+  $('#sync-pill').addEventListener('click', refreshFromSheet);
   $('#pull-btn').addEventListener('click', () => pull(false));
   window.addEventListener('online', () => flush().then(() => pull(true)));
   window.addEventListener('offline', renderSyncPill);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderQuick(); flush(); } });
+  // App weer geopend → wijzigingen uit de Sheet meteen ophalen
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderQuick(); flush().then(() => pull(true)); } });
 
   /* ---------- trips list ---------- */
   function monthOptions(select) {
@@ -824,17 +688,17 @@
     const trips = liveTrips().filter((t) => monthKey(t.date) === sel.value);
     const sum = (f) => trips.reduce((a, t) => a + (f(t) || 0), 0);
     const km = sum((t) => t.km), fee = sum((t) => t.fee);
-    const biz = sum((t) => (t.type !== 'Privé' ? t.km : 0)), priv = sum((t) => (t.type === 'Privé' ? t.km : 0));
+    const longest = trips.reduce((best, t) => ((t.km || 0) > (best?.km || 0) ? t : best), null);
     const days = new Set(trips.map((t) => t.date)).size;
     const odos = trips.map((t) => [t.odoStart, t.odoEnd]).flat().filter(Boolean);
     const routes = {};
     trips.forEach((t) => { const k = placeName(t.from) + ' → ' + placeName(t.to); (routes[k] ||= { n: 0, km: 0 }); routes[k].n++; routes[k].km += t.km || 0; });
     $('#summary').innerHTML = `
       <div class="stats">
-        <div class="stat"><b>${fmtKm(km)}</b><span>${tr('km totaal')}</span></div>
+        <div class="stat"><b>${fmtKm(km)} km</b><span>${tr('totaal')}</span></div>
         <div class="stat"><b>${fmtEur(fee)}</b><span>${tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })}</span></div>
         <div class="stat"><b>${trips.length}</b><span>${tr(days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: days })}</span></div>
-        <div class="stat"><b>${fmtKm(biz)}</b><span>${tr('zakelijk')}${priv ? ` · ${fmtKm(priv)} ${tr('privé')}` : ''}</span></div>
+        <div class="stat"><b>${longest ? fmtKm(longest.km) + ' km' : '–'}</b><span>${tr('langste rit')}${longest ? `<small class="stat-sub">${esc(placeName(longest.from))} → ${esc(placeName(longest.to))}</small>` : ''}</span></div>
       </div>
       ${odos.length ? `<p class="hint">${tr('Km-teller: {a} → {b}', { a: fmtOdo(Math.min(...odos)), b: fmtOdo(Math.max(...odos)) })}</p>` : ''}
       ${trips.length ? `<div class="card"><h2>Routes</h2><div class="routes-list">${Object.entries(routes).sort((a, b) => b[1].n - a[1].n)
@@ -887,7 +751,7 @@
     $('#s-rate').value = String(s.rate).replace('.', ',');
     $('#s-type').value = s.defaultType; $('#s-car').value = s.car; $('#s-plate').value = s.plate; $('#s-driver').value = s.driver;
     $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
-    $('#s-odo').value = fmtOdo(latestOdo()); $('#s-lang').value = s.voiceLang;
+    $('#s-odo').value = fmtOdo(latestOdo());
     $('#place-list').innerHTML = state.places.map((p) => `
       <button type="button" class="place-item" data-pid="${p.id}">
         <span>${esc(p.name)}<small>${esc(p.address)}</small></span>
@@ -911,10 +775,10 @@
     const s = state.settings;
     s.rate = parseDec($('#s-rate').value) ?? s.rate;
     s.defaultType = $('#s-type').value; s.car = $('#s-car').value.trim(); s.plate = $('#s-plate').value.trim();
-    s.driver = $('#s-driver').value.trim(); s.voiceLang = $('#s-lang').value;
+    s.driver = $('#s-driver').value.trim();
     const odo = parseInt0($('#s-odo').value);
     if (odo) state.lastOdo = odo;
-    save(); if (!editingId) resetForm(); renderVoiceHint(); toast(tr('Opgeslagen'));
+    save(); if (!editingId) resetForm(); toast(tr('Opgeslagen'));
   });
   $('#backup-btn').addEventListener('click', () => download(`ritlog-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), 'application/json'));
   $('#reset-btn').addEventListener('click', () => {
@@ -997,7 +861,8 @@
 
   // Na het koppelen: thuis, werk en auto afleiden uit de bestaande ritten.
   function inferSetup(rows) {
-    if (!rows.length) return false;
+    // Alleen bij de eerste koppeling; daarna beheert hij zijn plekken zelf
+    if (!rows.length || (placeByRole('home') && placeByRole('work'))) return false;
     let changed = false;
     const votes = { home: {}, work: {} };
     const vote = (role, addr) => { if (addr) votes[role][addr] = (votes[role][addr] || 0) + 1; };
@@ -1128,12 +993,6 @@
   });
 
   /* ---------- taal / language ---------- */
-  function renderVoiceHint() {
-    const ex = state.settings.voiceLang === 'en-US'
-      ? 'yesterday ride 2 from work to Coolsingel 40 Rotterdam'
-      : 'gisteren rit 2 van werk naar Coolsingel 40 Rotterdam';
-    $('#voice-hint').textContent = tr('Bijv. “{x}”', { x: ex });
-  }
   function applyLang() {
     I18N.setLang(state.settings.uiLang);
     I18N.apply();
@@ -1142,7 +1001,7 @@
     const active = $('.screen.active');
     $('#screen-title').textContent = tr(active.dataset.title);
     $('#save-btn').textContent = tr(editingId ? 'Wijziging opslaan' : 'Rit opslaan');
-    renderVoiceHint(); renderQuick(); renderSyncPill(); updateFee();
+    renderQuick(); renderSyncPill(); updateFee();
     if (active.id === 'screen-trips') renderTrips();
     if (active.id === 'screen-summary') renderSummary();
     if (active.id === 'screen-settings') renderSettings();
@@ -1181,5 +1040,5 @@
     }).catch(() => {});
   }
   // Voor tests in de browser
-  window.__ritlog = { state: () => state, parseSpeech };
+  window.__ritlog = { state: () => state };
 })();
