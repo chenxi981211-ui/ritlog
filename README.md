@@ -16,7 +16,8 @@ A small web app for iPhone that logs trips straight into the existing Google She
 | **Refresh** | Tap the ↻ status pill at the top to send anything waiting and reload every trip from the Sheet (handy after editing the Sheet). The app also refreshes by itself each time it's opened. |
 | **Offline** | Without signal, trips are queued and sent automatically once he's online again. |
 | **Export** | CSV per month in the same columns (opens in Excel), or *copy* to paste into Google Sheets. |
-| **History & summary** | Trips per month (tap one to edit, delete or repeat it), total km, € reimbursement, number of trips, the longest trip, and the most-driven routes. |
+| **Business / Private** | The *Zakelijk / Privé* switch fills the Sheet's **Type rit** column. Private trips get no reimbursement. |
+| **History & summary** | Trips per month (tap one to edit, delete or repeat it). The dashboard shows **total km** (trips + business and private detours), **reimbursement**, the **private km balance** (500 km per calendar year minus private trips and private detours; changeable under Settings) and the **current odometer**, plus number of trips, the longest trip and the most-driven routes. |
 | **Home screen app** | Opens full-screen like a normal app, with its own icon. |
 | **English / Dutch** | Tap **NL EN** at the top to switch the app's language. It's remembered on each phone. Anything written to the Google Sheet stays Dutch, so his records stay consistent. |
 
@@ -35,7 +36,7 @@ After connecting, the app reads the existing trips and fills in **home, work, fr
 - **Security:** the Web app link is the key, so only share it with your own phones. (An extra code can still be set in `TOKEN` at the top of the script, but it isn't needed.)
 - **Changed the script later?** Use **Deploy → Manage deployments → Edit → New version** so the link stays the same.
 
-The script follows the Sheet's own columns by name, so columns can be added, removed or reordered. Trips get a **Rit-nr** (trip number of the day) automatically when that column exists.
+The script follows the Sheet's own columns by name, so columns can be added, removed or reordered, and names may have extra text (e.g. *Vergoeding (€0,25/km)*; the €/km rate is read from it). With several trip tabs it uses the one with the most matching columns; pick another under **Settings → Google Sheet → Tab**. Trips get a **Rit-nr** (trip number of the day) automatically when that column exists.
 
 ## Privacy: what's public and what isn't
 

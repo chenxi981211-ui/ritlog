@@ -278,3 +278,5 @@ dialog label { margin-top: 10px; }
 .icon-btn.busy .ico { animation: spin 1s linear infinite; opacity: .6; }
 .swap { display: grid; place-items: center; }
 .swap .ico { width: 18px; height: 18px; }
+
+.stat.over b { color: var(--danger); }

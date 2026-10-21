@@ -163,6 +163,10 @@
           <label for="s-token">Code (token, optioneel)</label>
           <input id="s-token" placeholder="geheime code">
         </details>
+        <div id="tab-row" class="hidden">
+          <label for="s-tab">Tabblad</label>
+          <select id="s-tab"></select>
+        </div>
         <div class="row gap" style="margin-top:10px">
           <button type="button" class="btn small" id="s-test">Opslaan & testen</button>
           <span class="hint" id="s-test-result" data-dyn></span>
@@ -183,6 +187,7 @@
           <div><label for="s-plate">Kenteken</label><input id="s-plate"></div>
           <div><label for="s-driver">Rijder</label><input id="s-driver"></div>
           <div><label for="s-odo">Laatste km-stand</label><input id="s-odo" inputmode="numeric"></div>
+          <div><label for="s-priv">Privé-km per jaar</label><input id="s-priv" inputmode="numeric"></div>
         </div>
         <button type="button" class="btn small" id="s-save-defaults">Opslaan</button>
       </div>

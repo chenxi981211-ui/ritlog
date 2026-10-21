@@ -34,11 +34,11 @@ function doPost(e) {
 function handle_(p) {
   try {
     if (TOKEN && p.token !== TOKEN) return out_({ ok: false, error: 'Ongeldige code (token)' });
-    const sheet = getSheet_();
+    const sheet = getSheet_(p.sheet);
     const cols = columns_(sheet);
     switch (p.action) {
-      case 'ping': return out_({ ok: true, sheet: sheet.getName() });
-      case 'list': return out_({ ok: true, headers: headers_(sheet), rows: list_(sheet, cols, Number(p.limit) || 300) });
+      case 'ping': return out_({ ok: true, sheet: sheet.getName(), tabs: tripTabs_().map((t) => t.getName()) });
+      case 'list': return out_({ ok: true, sheet: sheet.getName(), headers: headers_(sheet), rows: list_(sheet, cols, Number(p.limit) || 300) });
       case 'add': return locked_(() => out_({ ok: true, row: add_(sheet, cols, p.trip || {}) }));
       case 'update': return locked_(() => out_({ ok: true, row: update_(sheet, cols, p.orig || {}, p.trip || {}) }));
       case 'delete': return locked_(() => { remove_(sheet, cols, p.orig || {}); return out_({ ok: true }); });
@@ -49,19 +49,28 @@ function handle_(p) {
   }
 }
 
-function getSheet_() {
+// Welk tabblad: gekozen in de app (p.sheet) → SHEET_NAME → anders het tabblad
+// met de meeste herkende kolommen (bij gelijkspel het eerste).
+function getSheet_(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (SHEET_NAME) {
-    const s = ss.getSheetByName(SHEET_NAME);
-    if (!s) throw new Error('Tabblad niet gevonden: ' + SHEET_NAME);
-    return s;
+  const wanted = name || SHEET_NAME;
+  if (wanted) {
+    const s = ss.getSheetByName(wanted);
+    if (s) return s;
+    if (!name) throw new Error('Tabblad niet gevonden: ' + wanted);
   }
-  const hit = ss.getSheets().find((s) => {
-    const head = s.getRange(1, 1, 1, Math.max(1, s.getLastColumn())).getDisplayValues()[0].map((h) => h.trim());
-    return head.indexOf(HEADERS.km) >= 0 && head.indexOf(HEADERS.from) >= 0;
-  });
-  if (!hit) throw new Error('Geen tabblad met de kolom "' + HEADERS.km + '" gevonden');
-  return hit;
+  const tabs = tripTabs_();
+  if (!tabs.length) throw new Error('Geen tabblad met de kolom "' + HEADERS.km + '" gevonden');
+  return tabs[0];
+}
+
+// Tabbladen met ritten, beste match eerst
+function tripTabs_() {
+  return SpreadsheetApp.getActiveSpreadsheet().getSheets()
+    .map((s, i) => ({ s, i, cols: s.getLastColumn() ? columns_(s) : {} }))
+    .filter((x) => x.cols.km && x.cols.from && x.cols.date)
+    .sort((a, b) => Object.keys(b.cols).length - Object.keys(a.cols).length || a.i - b.i)
+    .map((x) => x.s);
 }
 
 function headers_(sheet) {
@@ -70,8 +79,15 @@ function headers_(sheet) {
 
 function columns_(sheet) {
   const head = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0].map((h) => h.trim());
+  // Kolomnaam mag extra tekst hebben, bijv. "Vergoeding (€0,25/km)"
+  const norm = (x) => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
   const cols = {};
-  Object.keys(HEADERS).forEach((k) => { const i = head.indexOf(HEADERS[k]); if (i >= 0) cols[k] = i + 1; });
+  Object.keys(HEADERS).forEach((k) => {
+    const want = norm(HEADERS[k]);
+    let i = head.findIndex((h) => norm(h) === want);
+    if (i < 0) i = head.findIndex((h) => norm(h).startsWith(want + ' ') || norm(h).startsWith(want + '('));
+    if (i >= 0) cols[k] = i + 1;
+  });
   return cols;
 }
 

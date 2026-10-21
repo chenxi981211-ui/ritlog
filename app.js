@@ -5,7 +5,7 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
-  const APP_VERSION = '2026-10-20.1';
+  const APP_VERSION = '2026-10-22.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -337,6 +337,10 @@
     go('new');
   }
 
+  // Vergoeding = afstand × tarief; privéritten krijgen geen vergoeding
+  const calcFee = (km, type) => (km && type !== 'Privé' ? Math.round(km * state.settings.rate * 100) / 100 : 0);
+  // Privé-saldo: zoveel privé-km per kalenderjaar (standaard 500)
+  const privAllowance = () => state.settings.privAllowance ?? 500;
   function readForm() {
     const v = (k) => F(k).value.trim();
     const km = parseDec(v('km'));
@@ -344,7 +348,7 @@
       desc: v('desc'), date: v('date'), tripNo: parseInt0(v('tripNo')) || nextTripNo(v('date'), editingId), km,
       detourBiz: parseDec(v('detourBiz')), detourPriv: parseDec(v('detourPriv')),
       odoStart: parseInt0(v('odoStart')), odoEnd: parseInt0(v('odoEnd')),
-      fee: km ? Math.round(km * state.settings.rate * 100) / 100 : 0,
+      fee: calcFee(km, F('type').value || state.settings.defaultType),
       from: v('from'), to: v('to'), type: F('type').value || state.settings.defaultType,
       car: v('car'), plate: v('plate'), driver: v('driver'),
     };
@@ -530,7 +534,9 @@
     const { scriptUrl, token } = state.settings;
     if (!scriptUrl) throw new Error(tr('Geen Sheet gekoppeld'));
     // text/plain = "simple request" zonder CORS-preflight; Apps Script leest de body.
-    const res = await fetchJSON(scriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...(token ? { token } : {}), ...payload }) }, 25000);
+    const sheet = state.settings.sheetTab;
+    const res = await fetchJSON(scriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...(token ? { token } : {}), ...(sheet ? { sheet } : {}), ...payload }) }, 25000);
+    if (Array.isArray(res.tabs)) state.sheetTabs = res.tabs;
     if (!res.ok) throw new Error(tr(res.error || 'Onbekende fout'));
     return res;
   }
@@ -569,9 +575,10 @@
       desc: r.desc || '', date: parseSheetDate(r.date), tripNo: parseInt0(r.tripNo),
       km: parseDec(r.km), detourBiz: parseDec(r.detourBiz), detourPriv: parseDec(r.detourPriv),
       odoStart: parseInt0(r.odoStart), odoEnd: parseInt0(r.odoEnd), fee: parseDec(r.fee),
-      from: (r.from || '').trim(), to: (r.to || '').trim(), type: r.type || '', car: r.car || '', plate: r.plate || '', driver: r.driver || '',
+      from: (r.from || '').trim(), to: (r.to || '').trim(), type: /priv/i.test(r.type || '') ? 'Privé' : (r.type ? 'Zakelijk' : ''), car: r.car || '', plate: r.plate || '', driver: r.driver || '',
       orig: r.orig, sync: 'synced',
     };
+    if (t.fee == null) t.fee = calcFee(t.km, t.type);
     t.id = 'sheet:' + (r.orig.ts || [r.orig.date, r.orig.start, r.orig.tripNo, r.orig.from].join('|'));
     return t;
   }
@@ -581,6 +588,10 @@
     try {
       const res = await api({ action: 'list', limit: 400 });
       if (Array.isArray(res.headers) && res.headers.length) state.sheetHeaders = res.headers;
+      if (res.sheet) state.activeTab = res.sheet;
+      const feeHead = (res.headers || []).find((h) => /^vergoeding/i.test(h));
+      const rateM = feeHead && feeHead.match(/€\s*([\d.,]+)\s*\/\s*km/i);
+      if (rateM && parseDec(rateM[1])) state.settings.rate = parseDec(rateM[1]);
       const pending = state.trips.filter((t) => t.sync !== 'synced' && t.sync !== 'local');
       const pendingIds = new Set(pending.map((t) => t.id));
       const fromSheet = res.rows.map(rowToTrip).filter((t) => t.date && !pendingIds.has(t.id));
@@ -686,21 +697,29 @@
     const sel = $('#summary-month');
     monthOptions(sel);
     const trips = liveTrips().filter((t) => monthKey(t.date) === sel.value);
-    const sum = (f) => trips.reduce((a, t) => a + (f(t) || 0), 0);
-    const km = sum((t) => t.km), fee = sum((t) => t.fee);
-    const longest = trips.reduce((best, t) => ((t.km || 0) > (best?.km || 0) ? t : best), null);
+    const sum = (list, f) => list.reduce((a, t) => a + (f(t) || 0), 0);
+    // Totaal = afstand + zakelijke + privé omrijkilometers
+    const km = sum(trips, (t) => (t.km || 0) + (t.detourBiz || 0) + (t.detourPriv || 0));
+    // Zoals de Sheet: zakelijke afstand × tarief, pas aan het eind afronden
+    const fee = Math.round(sum(trips, (t) => (t.type === 'Privé' ? 0 : t.km || 0)) * state.settings.rate * 100) / 100;
+    // Privé-saldo per kalenderjaar: jaartegoed − privéritten − privé omrijkilometers
+    const year = sel.value.slice(0, 4);
+    const yearTrips = liveTrips().filter((t) => t.date.startsWith(year));
+    const privUsed = sum(yearTrips, (t) => (t.type === 'Privé' ? t.km || 0 : 0) + (t.detourPriv || 0));
+    const privLeft = privAllowance() - privUsed;
+    const odoNow = latestOdo();
     const days = new Set(trips.map((t) => t.date)).size;
-    const odos = trips.map((t) => [t.odoStart, t.odoEnd]).flat().filter(Boolean);
+    const longest = trips.reduce((best, t) => ((t.km || 0) > (best?.km || 0) ? t : best), null);
     const routes = {};
     trips.forEach((t) => { const k = placeName(t.from) + ' → ' + placeName(t.to); (routes[k] ||= { n: 0, km: 0 }); routes[k].n++; routes[k].km += t.km || 0; });
     $('#summary').innerHTML = `
       <div class="stats">
-        <div class="stat"><b>${fmtKm(km)} km</b><span>${tr('totaal')}</span></div>
+        <div class="stat"><b>${fmtKm(km)} km</b><span>${tr('totaal')}<small class="stat-sub">${tr('incl. omrijkilometers')}</small></span></div>
         <div class="stat"><b>${fmtEur(fee)}</b><span>${tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })}</span></div>
-        <div class="stat"><b>${trips.length}</b><span>${tr(days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: days })}</span></div>
-        <div class="stat"><b>${longest ? fmtKm(longest.km) + ' km' : '–'}</b><span>${tr('langste rit')}${longest ? `<small class="stat-sub">${esc(placeName(longest.from))} → ${esc(placeName(longest.to))}</small>` : ''}</span></div>
+        <div class="stat${privLeft < 0 ? ' over' : ''}"><b>${fmtKm(privLeft)} km</b><span>${tr('privé-saldo {y}', { y: year })}<small class="stat-sub">${tr('{u} van {a} km gebruikt', { u: fmtKm(privUsed), a: privAllowance() })}</small></span></div>
+        <div class="stat"><b>${odoNow ? fmtOdo(odoNow) : '–'}</b><span>${tr('huidige km-stand')}</span></div>
       </div>
-      ${odos.length ? `<p class="hint">${tr('Km-teller: {a} → {b}', { a: fmtOdo(Math.min(...odos)), b: fmtOdo(Math.max(...odos)) })}</p>` : ''}
+      ${trips.length ? `<p class="hint">${tr(days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: days }).replace(/^/, trips.length + ' ')}${longest ? ` · ${tr('langste rit')}: ${fmtKm(longest.km)} km (${esc(placeName(longest.from))} → ${esc(placeName(longest.to))})` : ''}</p>` : ''}
       ${trips.length ? `<div class="card"><h2>Routes</h2><div class="routes-list">${Object.entries(routes).sort((a, b) => b[1].n - a[1].n)
         .map(([k, r]) => `<div><span>${esc(k)} <small class="hint">×${r.n}</small></span><b>${fmtKm(r.km)} km</b></div>`).join('')}</div></div>` : ''}`;
   }
@@ -718,7 +737,9 @@
   // Zelfde kolommen als de Sheet nu heeft (na koppelen bekend), anders de standaardset
   function exportColumns() {
     if (!state.sheetHeaders?.length) return COLUMNS;
-    return state.sheetHeaders.map((h) => [COLUMNS.find(([, name]) => name === h)?.[0] || '', h]);
+    const n = (x) => String(x).toLowerCase().trim();
+    return state.sheetHeaders.map((h) => [(COLUMNS.find(([, name]) => n(name) === n(h))
+      || COLUMNS.find(([, name]) => n(h).startsWith(n(name) + ' ') || n(h).startsWith(n(name) + '(')))?.[0] || '', h]);
   }
   function download(name, content, type) {
     const blob = new Blob([content], { type });
@@ -752,6 +773,11 @@
     $('#s-type').value = s.defaultType; $('#s-car').value = s.car; $('#s-plate').value = s.plate; $('#s-driver').value = s.driver;
     $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
     $('#s-odo').value = fmtOdo(latestOdo());
+    $('#s-priv').value = privAllowance();
+    const tabs = state.sheetTabs || [];
+    $('#tab-row').classList.toggle('hidden', !s.scriptUrl || tabs.length < 2);
+    $('#s-tab').innerHTML = tabs.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    $('#s-tab').value = s.sheetTab && tabs.includes(s.sheetTab) ? s.sheetTab : (state.activeTab || tabs[0] || '');
     $('#place-list').innerHTML = state.places.map((p) => `
       <button type="button" class="place-item" data-pid="${p.id}">
         <span>${esc(p.name)}<small>${esc(p.address)}</small></span>
@@ -778,7 +804,15 @@
     s.driver = $('#s-driver').value.trim();
     const odo = parseInt0($('#s-odo').value);
     if (odo) state.lastOdo = odo;
+    const priv = parseInt0($('#s-priv').value);
+    if (priv != null) s.privAllowance = priv;
     save(); if (!editingId) resetForm(); toast(tr('Opgeslagen'));
+  });
+  $('#s-tab').addEventListener('change', async () => {
+    state.settings.sheetTab = $('#s-tab').value;
+    save();
+    await pull(false);
+    renderSettings();
   });
   $('#backup-btn').addEventListener('click', () => download(`ritlog-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), 'application/json'));
   $('#reset-btn').addEventListener('click', () => {
