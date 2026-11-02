@@ -5,7 +5,7 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
-  const APP_VERSION = '2026-10-22.1';
+  const APP_VERSION = '2026-11-02.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -586,7 +586,7 @@
   async function pull(silent = false) {
     if (!state.settings.scriptUrl || !navigator.onLine) return;
     try {
-      const res = await api({ action: 'list', limit: 400 });
+      const res = await api({ action: 'list', limit: 5000 });
       if (Array.isArray(res.headers) && res.headers.length) state.sheetHeaders = res.headers;
       if (res.sheet) state.activeTab = res.sheet;
       const feeHead = (res.headers || []).find((h) => /^vergoeding/i.test(h));
@@ -644,18 +644,35 @@
     }
   }
   $('#sync-pill').addEventListener('click', refreshFromSheet);
-  $('#pull-btn').addEventListener('click', () => pull(false));
   window.addEventListener('online', () => flush().then(() => pull(true)));
   window.addEventListener('offline', renderSyncPill);
   // App weer geopend → wijzigingen uit de Sheet meteen ophalen
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderQuick(); flush().then(() => pull(true)); } });
 
   /* ---------- trips list ---------- */
-  function monthOptions(select) {
-    const keys = new Set([monthKey(todayISO()), ...liveTrips().map((t) => monthKey(t.date))]);
-    const cur = select.value || monthKey(todayISO());
-    select.innerHTML = [...keys].sort().reverse().map((k) => `<option value="${k}">${monthLabel(k)}</option>`).join('');
-    select.value = keys.has(cur) ? cur : monthKey(todayISO());
+  const TRIPS_PAGE = 100; // ritten per keer in de lijst, de rest via "Meer ritten laden"
+  let tripsShown = TRIPS_PAGE;
+  const tripKm = (t) => (t.km || 0) + (t.detourBiz || 0) + (t.detourPriv || 0);
+  const monthName = (year, mm) => new Date(`${year}-${mm}-15T12:00`).toLocaleDateString(I18N.locale(), { month: 'long' });
+
+  // Jaar staat bij het opstarten op dit jaar, maand op leeg (= alle maanden).
+  // Geeft de gekozen periode terug: "2026" of "2026-10".
+  function renderTripFilters() {
+    const yearSel = $('#trips-year'), monthSel = $('#trips-month');
+    const trips = liveTrips();
+    const thisYear = todayISO().slice(0, 4);
+    const years = [...new Set([thisYear, ...trips.map((t) => t.date.slice(0, 4))])].sort().reverse();
+    const year = years.includes(yearSel.value) ? yearSel.value : thisYear;
+    yearSel.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('');
+    yearSel.value = year;
+    const months = [...new Set(trips.filter((t) => t.date.startsWith(year)).map((t) => t.date.slice(5, 7)))].sort().reverse();
+    const month = months.includes(monthSel.value) ? monthSel.value : '';
+    monthSel.innerHTML = `<option value="">${esc(tr('Alle maanden'))}</option>`
+      + months.map((m) => `<option value="${m}">${esc(monthName(year, m))}</option>`).join('');
+    monthSel.value = month;
+    yearSel.setAttribute('aria-label', tr('Jaar'));
+    monthSel.setAttribute('aria-label', tr('Maand'));
+    return month ? `${year}-${month}` : year;
   }
   function statusClass(t) {
     if (t.sync === 'synced') return '';
@@ -663,29 +680,40 @@
     return /^error/.test(t.sync) ? 'error' : 'pending';
   }
   function renderTrips() {
-    const sel = $('#trips-month');
-    monthOptions(sel);
-    const trips = sortTrips(liveTrips().filter((t) => monthKey(t.date) === sel.value));
+    const period = renderTripFilters();
+    const trips = sortTrips(liveTrips().filter((t) => t.date.startsWith(period)));
+    const count = $('#trips-count');
     if (!trips.length) {
-      $('#trip-list').innerHTML = `<div class="empty">${tr('Geen ritten in {m}.', { m: monthLabel(sel.value) })}${state.settings.scriptUrl ? '<br>' + tr('Tik op “Ophalen uit Sheet” om bestaande ritten te laden.') : ''}</div>`;
+      count.textContent = '';
+      $('#trip-list').innerHTML = `<div class="empty">${esc(tr('Geen ritten in {m}.', { m: period.length > 4 ? monthLabel(period) : period }))}</div>`;
       return;
     }
+    count.textContent = tr(trips.length === 1 ? '{n} rit · {km} km' : '{n} ritten · {km} km', { n: trips.length, km: fmtKm(trips.reduce((a, t) => a + tripKm(t), 0)) });
+    const shown = trips.slice(0, tripsShown);
     let html = '', day = '';
-    trips.forEach((t) => {
+    shown.forEach((t) => {
       if (t.date !== day) { day = t.date; html += `<div class="day-head">${dayLabel(day)}</div>`; }
+      const route = `${placeName(t.from)} → ${placeName(t.to)}`;
+      const desc = (t.desc || '').trim();
+      const ride = tr('Rit {n}', { n: t.tripNo || '?' });
       html += `<button type="button" class="trip" data-id="${esc(t.id)}">
         <span class="status ${statusClass(t)}" title="${esc(t.error || t.sync)}"></span>
         <span class="t-main">
-          <div class="t-route">${esc(placeName(t.from))} → ${esc(placeName(t.to))}</div>
-          <div class="t-sub">${tr('Rit {n}', { n: t.tripNo || '?' })} · ${esc(t.desc || '')}</div>
+          <div class="t-title">${esc(desc || route)}</div>
+          <div class="t-sub">${esc(desc ? `${ride} · ${route}` : ride)}</div>
         </span>
         <span class="t-km">${fmtKm(t.km)} km<small>${fmtEur(t.fee)}</small></span>
       </button>`;
     });
+    if (shown.length < trips.length) {
+      html += `<button type="button" class="btn ghost load-more" id="load-more">${esc(tr('Meer ritten laden'))}
+        <small>${esc(tr('{a} van {b}', { a: shown.length, b: trips.length }))}</small></button>`;
+    }
     $('#trip-list').innerHTML = html;
   }
-  $('#trips-month').addEventListener('change', renderTrips);
+  ['#trips-year', '#trips-month'].forEach((id) => $(id).addEventListener('change', () => { tripsShown = TRIPS_PAGE; renderTrips(); }));
   $('#trip-list').addEventListener('click', (e) => {
+    if (e.target.closest('#load-more')) { tripsShown += TRIPS_PAGE; renderTrips(); return; }
     const b = e.target.closest('.trip'); if (!b) return;
     const t = state.trips.find((x) => x.id === b.dataset.id); if (!t) return;
     tripActions(t);
@@ -693,17 +721,172 @@
   function tripActions(t) { fillFromTrip(t, true); }
 
   /* ---------- summary + export ---------- */
+  /* Periodekeuze: een hele maand of een heel jaar ("2026-10" of "2026") */
+  function periodOptions(select) {
+    const thisMonth = monthKey(todayISO());
+    const months = [...new Set([thisMonth, ...liveTrips().map((t) => monthKey(t.date))])].sort().reverse();
+    const years = [...new Set(months.map((m) => m.slice(0, 4)))];
+    const cur = select.value || thisMonth;
+    select.innerHTML = years.map((y) => `<optgroup label="${y}"><option value="${y}">${esc(tr('Heel {y}', { y }))}</option>${
+      months.filter((m) => m.startsWith(y)).map((m) => `<option value="${m}">${esc(monthLabel(m))}</option>`).join('')}</optgroup>`).join('');
+    select.value = months.includes(cur) || years.includes(cur) ? cur : thisMonth;
+  }
+
+  const shortDate = (iso) => new Date(iso + 'T12:00').toLocaleDateString(I18N.locale(), { day: 'numeric', month: 'short' });
+  const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return isoDate(d); };
+  const dayIndex = (iso) => (new Date(iso + 'T12:00').getDay() + 6) % 7; // maandag = 0
+  const mondayOf = (iso) => addDays(iso, -dayIndex(iso));
+  const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00') - new Date(a + 'T12:00')) / 864e5);
+  function isoWeek(iso) {
+    const thursday = addDays(mondayOf(iso), 3);
+    return Math.floor(daysBetween(thursday.slice(0, 4) + '-01-01', thursday) / 7) + 1;
+  }
+  const fmtInt = (n) => nf0.format(Math.round(n));
+  const fmtDec1 = (n) => new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n);
+
+  // Alle inzichten voor één periode, puur berekend uit de ritten
+  function rideStats(trips, period) {
+    const totalKm = trips.reduce((a, t) => a + tripKm(t), 0);
+    const byDay = {};
+    trips.forEach((t) => { const d = (byDay[t.date] ||= { km: 0, n: 0 }); d.km += tripKm(t); d.n++; });
+    const dates = Object.keys(byDay).sort();
+    const busiest = dates.reduce((best, d) => (!best || byDay[d].km > byDay[best].km ? d : best), null);
+
+    // Langste reeks werkdagen (ma–vr) met minstens één rit
+    let streak = 0, run = 0, prev = null;
+    dates.filter((d) => dayIndex(d) < 5).forEach((d) => {
+      run = prev && addDays(prev, dayIndex(prev) === 4 ? 3 : 1) === d ? run + 1 : 1;
+      streak = Math.max(streak, run); prev = d;
+    });
+
+    // Verdeling: samen precies het totaal
+    const parts = { commute: 0, other: 0, private: 0, detour: 0 };
+    trips.forEach((t) => {
+      const roles = [placeByAddress(t.from)?.role, placeByAddress(t.to)?.role];
+      const kind = t.type === 'Privé' ? 'private' : (roles.includes('home') && roles.includes('work') ? 'commute' : 'other');
+      parts[kind] += t.km || 0;
+      parts.detour += (t.detourBiz || 0) + (t.detourPriv || 0);
+    });
+    const detourRides = trips.filter((t) => t.detourBiz || t.detourPriv).length;
+
+    // Bestemmingen buiten huis en werk
+    const dest = {};
+    const seen = new Set();
+    trips.forEach((t) => {
+      [t.from, t.to].forEach((a) => { if (a && !placeByAddress(a)?.role) seen.add(norm(a)); });
+      if (t.to && !placeByAddress(t.to)?.role) (dest[norm(t.to)] ||= { addr: t.to, n: 0 }).n++;
+    });
+    const destinations = Object.values(dest).sort((a, b) => b.n - a.n).slice(0, 5);
+
+    // Km-teller tegen geregistreerde kilometers
+    const withOdo = trips.filter((t) => t.odoStart && t.odoEnd).sort((a, b) => a.odoStart - b.odoStart);
+    let odo = null;
+    if (withOdo.length) {
+      const gaps = [];
+      withOdo.forEach((t, i) => { const next = withOdo[i + 1]; if (next && next.odoStart !== t.odoEnd) gaps.push(next.odoStart - t.odoEnd); });
+      const driven = Math.max(...withOdo.map((t) => t.odoEnd)) - withOdo[0].odoStart;
+      const logged = withOdo.reduce((a, t) => a + tripKm(t), 0);
+      odo = { driven, logged, diff: driven - logged, gaps: gaps.length, gapKm: gaps.reduce((a, g) => a + Math.abs(g), 0) };
+    }
+
+    // Grafieken: per week binnen een maand, per maand binnen een jaar
+    let timeline;
+    if (period.length > 4) {
+      timeline = [];
+      const end = isoDate(new Date(+period.slice(0, 4), +period.slice(5, 7), 0)); // laatste dag van de maand
+      for (let w = mondayOf(`${period}-01`); w <= end; w = addDays(w, 7)) {
+        const weekEnd = addDays(w, 6);
+        const km = trips.filter((t) => t.date >= w && t.date <= weekEnd).reduce((a, t) => a + tripKm(t), 0);
+        timeline.push({ label: `${tr('wk')} ${isoWeek(w)}`, value: km });
+      }
+    } else {
+      timeline = Array.from({ length: 12 }, (_, i) => {
+        const key = `${period}-${pad(i + 1)}`;
+        const label = new Date(key + '-15T12:00').toLocaleDateString(I18N.locale(), { month: 'short' }).replace('.', '');
+        return { label, value: trips.filter((t) => t.date.startsWith(key)).reduce((a, t) => a + tripKm(t), 0) };
+      });
+    }
+    const weekdays = Array.from({ length: 7 }, (_, i) => ({
+      label: new Date(addDays('2024-01-01', i) + 'T12:00').toLocaleDateString(I18N.locale(), { weekday: 'short' }).replace('.', ''),
+      value: trips.filter((t) => dayIndex(t.date) === i).reduce((a, t) => a + tripKm(t), 0),
+    }));
+
+    // Verwachting tot het eind van dit jaar, op het tempo sinds de eerste rit
+    let forecast = null;
+    const today = todayISO();
+    if (period === today.slice(0, 4) && dates.length && daysBetween(dates[0], today) >= 13) {
+      const factor = (daysBetween(dates[0], `${period}-12-31`) + 1) / (daysBetween(dates[0], today) + 1);
+      const business = trips.reduce((a, t) => a + (t.type === 'Privé' ? 0 : t.km || 0), 0);
+      forecast = { km: totalKm * factor, fee: business * state.settings.rate * factor };
+    }
+    return { totalKm, days: dates.length, byDay, busiest, streak, parts, detourRides, destinations, places: seen.size, odo, timeline, weekdays, forecast };
+  }
+
+  // Kolomgrafiek met één reeks: de hoogste kolom krijgt een label, tikken toont de rest
+  function columnChart(title, items) {
+    const max = Math.max(...items.map((i) => i.value));
+    const read = (i) => `${fmtKm(i.value)} km · ${i.label}`;
+    const peak = items.find((i) => i.value === max);
+    return `<div class="card viz">
+      <div class="chart-head"><h2>${esc(title)}</h2><span class="chart-read">${esc(max ? read(peak) : '')}</span></div>
+      <div class="cols">${items.map((i) => `<button type="button" class="col" data-read="${esc(read(i))}" aria-label="${esc(read(i))}">
+        ${i === peak && max ? `<em>${fmtInt(i.value)}</em>` : ''}<i style="height:${max ? Math.max(i.value ? 2 : 0, (i.value / max) * 100) : 0}px"></i>
+      </button>`).join('')}</div>
+      <div class="col-labels">${items.map((i) => `<span>${esc(i.label)}</span>`).join('')}</div>
+      <details class="chart-table"><summary>${esc(tr('Tabel'))}</summary><table>${items.map((i) =>
+        `<tr><td>${esc(i.label)}</td><td>${fmtKm(i.value)} km</td></tr>`).join('')}</table></details>
+    </div>`;
+  }
+  function splitChart(parts, total) {
+    const rows = [['commute', 'Woon-werk'], ['other', 'Overig zakelijk'], ['private', 'Privé'], ['detour', 'Omrijden']];
+    const pct = (v) => (total ? fmtDec1((v / total) * 100) : fmtDec1(0)) + '%';
+    return `<div class="card viz"><h2>${esc(tr('Waar gaan de kilometers heen?'))}</h2>
+      <div class="split">${rows.filter(([k]) => parts[k] > 0).map(([k]) => `<span class="seg-${k}" style="flex:${parts[k]} 1 0"></span>`).join('')}</div>
+      <div class="legend">${rows.map(([k, label]) => `<div><span class="swatch seg-${k}"></span><span class="grow">${esc(tr(label))}</span><span class="muted">${pct(parts[k])}</span><b>${fmtKm(parts[k])} km</b></div>`).join('')}</div>
+    </div>`;
+  }
+  function insightsHtml(st, trips) {
+    const n = trips.length;
+    const tile = (value, label, sub) => `<div class="stat"><b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
+    const b = st.busiest && st.byDay[st.busiest];
+    const detourKm = st.parts.detour;
+    return `<h2 class="section-title">${esc(tr('Inzichten'))}</h2>
+      <div class="stats small">
+        ${tile(`${fmtKm(st.totalKm / n)} km`, tr('gem. per rit'))}
+        ${tile(`${fmtKm(st.totalKm / st.days)} km`, tr('gem. per rijdag'))}
+        ${tile(fmtDec1(n / st.days), tr('ritten per rijdag'))}
+        ${tile(`${fmtKm(b.km)} km`, tr('drukste dag'), tr(b.n === 1 ? '{d} · {n} rit' : '{d} · {n} ritten', { d: shortDate(st.busiest), n: b.n }))}
+        ${tile(tr(st.streak === 1 ? '{n} dag' : '{n} dagen', { n: st.streak }), tr('langste reeks'), tr('werkdagen op rij'))}
+        ${tile(`${st.totalKm ? fmtDec1((detourKm / st.totalKm) * 100) : fmtDec1(0)}%`, tr('omrijden'), tr(st.detourRides === 1 ? '{n} rit · {km} km' : '{n} ritten · {km} km', { n: st.detourRides, km: fmtKm(detourKm) }))}
+      </div>
+      ${st.forecast ? `<div class="card"><h2>${esc(tr('Verwachting eind {y}', { y: trips[0].date.slice(0, 4) }))}</h2>
+        <p class="forecast"><b>${fmtInt(st.forecast.km)} km</b><b>${fmtEur(st.forecast.fee)}</b></p>
+        <p class="hint">${esc(tr('Als hij zo doorrijdt als sinds de eerste rit van dit jaar. Vakanties zijn niet meegerekend.'))}</p></div>` : ''}
+      ${columnChart(tr(st.timeline.length === 12 ? 'Km per maand' : 'Km per week'), st.timeline)}
+      ${columnChart(tr('Km per weekdag'), st.weekdays)}
+      ${splitChart(st.parts, st.totalKm)}
+      ${st.destinations.length ? `<div class="card"><h2>${esc(tr('Meest bezocht'))}</h2><p class="hint">${esc(tr('{n} verschillende adressen, naast thuis en werk', { n: st.places }))}</p>
+        <div class="routes-list">${st.destinations.map((d) => `<div><span>${esc(placeName(d.addr))}</span><b>×${d.n}</b></div>`).join('')}</div></div>` : ''}
+      ${st.odo ? `<div class="card"><h2>${esc(tr('Controle km-teller'))}</h2><div class="routes-list">
+        <div><span>${esc(tr('Gereden volgens km-teller'))}</span><b>${fmtOdo(st.odo.driven)} km</b></div>
+        <div><span>${esc(tr('Geregistreerd in ritten'))}</span><b>${fmtKm(st.odo.logged)} km</b></div>
+        <div><span>${esc(tr('Verschil'))}</span><b>${fmtKm(st.odo.diff)} km</b></div>
+        <div><span>${esc(tr('Gaten tussen ritten'))}</span><b>${st.odo.gaps ? `${st.odo.gaps} · ${fmtOdo(st.odo.gapKm)} km` : esc(tr('geen'))}</b></div>
+      </div></div>` : ''}`;
+  }
+
   function renderSummary() {
     const sel = $('#summary-month');
-    monthOptions(sel);
-    const trips = liveTrips().filter((t) => monthKey(t.date) === sel.value);
+    periodOptions(sel);
+    const period = sel.value;
+    const trips = liveTrips().filter((t) => t.date.startsWith(period));
     const sum = (list, f) => list.reduce((a, t) => a + (f(t) || 0), 0);
     // Totaal = afstand + zakelijke + privé omrijkilometers
-    const km = sum(trips, (t) => (t.km || 0) + (t.detourBiz || 0) + (t.detourPriv || 0));
+    const km = sum(trips, tripKm);
     // Zoals de Sheet: zakelijke afstand × tarief, pas aan het eind afronden
     const fee = Math.round(sum(trips, (t) => (t.type === 'Privé' ? 0 : t.km || 0)) * state.settings.rate * 100) / 100;
     // Privé-saldo per kalenderjaar: jaartegoed − privéritten − privé omrijkilometers
-    const year = sel.value.slice(0, 4);
+    const year = period.slice(0, 4);
     const yearTrips = liveTrips().filter((t) => t.date.startsWith(year));
     const privUsed = sum(yearTrips, (t) => (t.type === 'Privé' ? t.km || 0 : 0) + (t.detourPriv || 0));
     const privLeft = privAllowance() - privUsed;
@@ -720,14 +903,25 @@
         <div class="stat"><b>${odoNow ? fmtOdo(odoNow) : '–'}</b><span>${tr('huidige km-stand')}</span></div>
       </div>
       ${trips.length ? `<p class="hint">${tr(days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: days }).replace(/^/, trips.length + ' ')}${longest ? ` · ${tr('langste rit')}: ${fmtKm(longest.km)} km (${esc(placeName(longest.from))} → ${esc(placeName(longest.to))})` : ''}</p>` : ''}
-      ${trips.length ? `<div class="card"><h2>Routes</h2><div class="routes-list">${Object.entries(routes).sort((a, b) => b[1].n - a[1].n)
+      ${trips.length ? insightsHtml(rideStats(trips, period), trips) : ''}
+      ${trips.length ? `<div class="card"><h2>Routes</h2><div class="routes-list">${Object.entries(routes).sort((a, b) => b[1].n - a[1].n).slice(0, 8)
         .map(([k, r]) => `<div><span>${esc(k)} <small class="hint">×${r.n}</small></span><b>${fmtKm(r.km)} km</b></div>`).join('')}</div></div>` : ''}`;
   }
+  // Tik of wijs een kolom aan: de waarde verschijnt rechtsboven in de grafiek
+  function showColumn(e) {
+    const col = e.target.closest('.col'); if (!col) return;
+    const viz = col.closest('.viz');
+    viz.querySelector('.chart-read').textContent = col.dataset.read;
+    viz.querySelector('.cols').classList.add('has-active');
+    viz.querySelectorAll('.col.active').forEach((c) => c.classList.remove('active'));
+    col.classList.add('active');
+  }
+  ['click', 'pointerover', 'focusin'].forEach((ev) => $('#summary').addEventListener(ev, showColumn));
   $('#summary-month').addEventListener('change', renderSummary);
 
   function exportRows() {
     const key = $('#summary-month').value;
-    return sortTrips(liveTrips().filter((t) => monthKey(t.date) === key)).map((t) => ({
+    return sortTrips(liveTrips().filter((t) => t.date.startsWith(key))).map((t) => ({
       ts: '', desc: t.desc, date: sheetDate(t.date), tripNo: t.tripNo || '',
       km: t.km != null ? fmtKm(t.km) + ' km' : '', detourBiz: t.detourBiz ? fmtKm(t.detourBiz) + ' km' : '',
       detourPriv: t.detourPriv ? fmtKm(t.detourPriv) + ' km' : '', odoStart: t.odoStart ? fmtOdo(t.odoStart) + ' km' : '',
@@ -750,7 +944,7 @@
   }
   $('#export-csv').addEventListener('click', () => {
     const rows = exportRows();
-    if (!rows.length) return toast(tr('Geen ritten in deze maand'));
+    if (!rows.length) return toast(tr('Geen ritten in deze periode'));
     const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const cols = exportColumns();
     const csv = [cols.map(([, h]) => cell(h)).join(';'), ...rows.map((r) => cols.map(([k]) => cell(r[k])).join(';'))].join('\r\n');
@@ -758,7 +952,7 @@
   });
   $('#export-copy').addEventListener('click', async () => {
     const rows = exportRows();
-    if (!rows.length) return toast(tr('Geen ritten in deze maand'));
+    if (!rows.length) return toast(tr('Geen ritten in deze periode'));
     const cols = exportColumns();
     const tsv = rows.map((r) => cols.map(([k]) => String(r[k] ?? '').replace(/\t/g, ' ')).join('\t')).join('\n');
     try { await navigator.clipboard.writeText(tsv); toast(tr('{n} ritten gekopieerd — plak in rij 2 van de Sheet', { n: rows.length })); }

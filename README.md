@@ -15,9 +15,11 @@ A small web app for iPhone that logs trips straight into the existing Google She
 | **Google Sheet sync** | Each trip is inserted in date and ride-number order (newest on top, like now), with the same formatting. The totals row at the bottom keeps counting. Editing or deleting a trip in the app also changes it in the Sheet. |
 | **Refresh** | Tap the ↻ status pill at the top to send anything waiting and reload every trip from the Sheet (handy after editing the Sheet). The app also refreshes by itself each time it's opened. |
 | **Offline** | Without signal, trips are queued and sent automatically once he's online again. |
-| **Export** | CSV per month in the same columns (opens in Excel), or *copy* to paste into Google Sheets. |
+| **Export** | CSV per month or whole year in the same columns (opens in Excel), or *copy* to paste into Google Sheets. |
 | **Business / Private** | The *Zakelijk / Privé* switch fills the Sheet's **Type rit** column. Private trips get no reimbursement. |
-| **History & summary** | Trips per month (tap one to edit, delete or repeat it). The dashboard shows **total km** (trips + business and private detours), **reimbursement**, the **private km balance** (500 km per calendar year minus private trips and private detours; changeable under Settings) and the **current odometer**, plus number of trips, the longest trip and the most-driven routes. |
+| **Trips list** | Filter by **Year** (starts on the current year) and **Month** (starts empty, so the whole year shows). The description is the title, with the ride number and addresses below it. 100 rides are shown at a time, with **Load more rides** at the bottom. |
+| **Summary** | For a month or a whole year: **total km** (trips + business and private detours), **reimbursement**, the **private km balance** (500 km per calendar year minus private trips and private detours; changeable under Settings) and the **current odometer**, plus the number of trips and the longest trip. |
+| **Insights** | Averages per ride and per driving day, rides per day, busiest day, longest streak of working days, detour share, km per week/month and per weekday, where the km go (commute, other business, private, detours), most visited addresses, an odometer check against the logged km, the most-driven routes and, for the current year, a forecast to year-end. |
 | **Home screen app** | Opens full-screen like a normal app, with its own icon. |
 | **English / Dutch** | Tap **NL EN** at the top to switch the app's language. It's remembered on each phone. Anything written to the Google Sheet stays Dutch, so his records stay consistent. |
 

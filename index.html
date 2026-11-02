@@ -121,9 +121,10 @@
     <!-- RITTEN -->
     <section class="screen" id="screen-trips" data-title="Ritten">
       <div class="row gap toolbar">
+        <select id="trips-year" aria-label="Jaar" data-dyn></select>
         <select id="trips-month" aria-label="Maand" data-dyn></select>
-        <button type="button" class="btn small ghost" id="pull-btn">Ophalen uit Sheet</button>
       </div>
+      <p class="hint list-count" id="trips-count" data-dyn></p>
       <div id="trip-list" data-dyn></div>
     </section>
 

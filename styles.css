@@ -12,6 +12,7 @@
   --warn-soft: #fdf0dc;
   --danger: #b42318;
   --ok: #15803d;
+  --viz-1: #2a78d6; --viz-2: #eb6834; --viz-3: #1baf7a; --viz-4: #eda100;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(16, 24, 22, .06), 0 2px 8px rgba(16, 24, 22, .05);
   color-scheme: light;
@@ -27,6 +28,7 @@
     --primary: #2dd4bf;
     --primary-ink: #04201c;
     --primary-soft: #133b36;
+    --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500;
     --warn: #f5b25b;
     --warn-soft: #3a2a12;
     --danger: #f87171;
@@ -195,7 +197,7 @@ details.more summary { color: var(--primary); font-weight: 600; font-size: 14px;
   box-shadow: var(--shadow); color: var(--text); font: inherit; cursor: pointer;
 }
 .trip .t-main { flex: 1; min-width: 0; }
-.trip .t-route { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip .t-title { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .trip .t-sub { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trip .t-km { font-weight: 700; text-align: right; white-space: nowrap; }
 .trip .t-km small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; }
@@ -280,3 +282,45 @@ dialog label { margin-top: 10px; }
 .swap .ico { width: 18px; height: 18px; }
 
 .stat.over b { color: var(--danger); }
+
+/* Rittenlijst */
+.list-count { margin: 0 4px; }
+.load-more { display: block; width: 100%; margin-top: 10px; }
+.load-more small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); }
+
+/* Inzichten */
+.section-title { font-size: 20px; letter-spacing: -.01em; margin: 20px 4px 0; }
+.stats.small .stat b { font-size: 19px; }
+.stats.small .stat { padding: 12px 14px; }
+.forecast { display: flex; justify-content: space-between; gap: 12px; margin: 4px 0 0; font-size: 22px; letter-spacing: -.02em; }
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.chart-head h2 { margin: 0; white-space: nowrap; }
+.chart-read { font-size: 13px; color: var(--muted); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cols { display: flex; align-items: stretch; height: 124px; gap: 2px; margin-top: 8px; border-bottom: 1px solid var(--line); }
+.col { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer;
+  display: flex; flex-direction: column; justify-content: flex-end; align-items: center; font: inherit; -webkit-tap-highlight-color: transparent; }
+.col i { display: block; width: 100%; max-width: 24px; background: var(--primary); border-radius: 4px 4px 0 0; }
+.col em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--text); line-height: 1.4; }
+.cols.has-active .col:not(.active) i { opacity: .4; }
+.col:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-radius: 4px; }
+.col-labels { display: flex; gap: 2px; margin-top: 4px; }
+.col-labels span { flex: 1; min-width: 0; text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.chart-table { margin-top: 8px; }
+.chart-table summary { font-size: 13px; color: var(--primary); font-weight: 600; cursor: pointer; }
+.chart-table table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+.chart-table td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.chart-table td:last-child { text-align: right; font-weight: 600; white-space: nowrap; }
+.split { display: flex; gap: 2px; height: 14px; margin-top: 4px; }
+.split span { min-width: 3px; }
+.split span:first-child { border-radius: 4px 0 0 4px; }
+.split span:last-child { border-radius: 0 4px 4px 0; }
+.split span:only-child { border-radius: 4px; }
+.seg-commute { background: var(--viz-1); }
+.seg-other { background: var(--viz-2); }
+.seg-private { background: var(--viz-3); }
+.seg-detour { background: var(--viz-4); }
+.legend { margin-top: 10px; font-size: 14px; display: grid; gap: 6px; }
+.legend > div { display: flex; align-items: center; gap: 8px; }
+.legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.legend .muted { color: var(--muted); font-size: 13px; }
+.legend b { min-width: 86px; text-align: right; white-space: nowrap; }
