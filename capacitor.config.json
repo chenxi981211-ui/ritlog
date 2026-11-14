@@ -1,0 +1,10 @@
+{
+  "appId": "io.github.chenxi981211.ritlog",
+  "appName": "Ritlog",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#f2f1ee",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}

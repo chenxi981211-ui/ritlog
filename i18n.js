@@ -165,6 +165,8 @@
     'Kopieer deze link:': 'Copy this link:',
     'Rit {n}': 'Ride {n}',
     'Bijgewerkt': 'Synced',
+    'Plak hier de koppel-link uit je Google Sheet.': 'Paste the connect link from your Google Sheet here.',
+    'Klik op de <b>Web-app-link</b>, tik op <b>Kopieer koppel-link</b> en plak hem hierboven. Klaar!': 'Click the <b>Web app link</b>, tap <b>Copy link</b> and paste it above. Done!',
     'Mijn auto': 'My car',
     'Weergave': 'Appearance',
     'Thema': 'Theme',

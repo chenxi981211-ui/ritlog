@@ -1,5 +1,5 @@
 // Offline-cache voor de app zelf. Verzoeken naar Google/PDOK/OSRM gaan altijd via het netwerk.
-const CACHE = 'ritlog-v10';
+const CACHE = 'ritlog-v11';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'i18n.js', 'car3d.js', 'vendor/three.module.min.js', 'vendor/RoundedBoxGeometry.js', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

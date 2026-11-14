@@ -29,7 +29,7 @@ function shadowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
-function buildCar({ color = '#3b7ddd', body = 'hatch' }) {
+export function buildCar({ color = '#3b7ddd', body = 'hatch' }) {
   const b = BODIES[body] || BODIES.hatch;
   const car = new THREE.Group();
   const paint = new THREE.MeshPhysicalMaterial({ color, roughness: 0.42, metalness: 0.05, clearcoat: 0.7, clearcoatRoughness: 0.28 });

@@ -1,0 +1,21 @@
+{
+  "name": "ritlog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ritlog — rittenregistratie voor de auto van de zaak (web + iOS via Capacitor)",
+  "scripts": {
+    "build:web": "node scripts/build-www.mjs",
+    "ios": "npm run build:web && npx cap sync ios",
+    "ios:open": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "7.6.10",
+    "@capacitor/filesystem": "7.1.9",
+    "@capacitor/ios": "7.6.10",
+    "@capacitor/share": "7.0.4",
+    "@capacitor/status-bar": "7.0.6"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.10"
+  }
+}

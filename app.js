@@ -5,7 +5,11 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
-  const APP_VERSION = '2026-11-14.1';
+  // In de iOS-app (Capacitor) zijn native onderdelen beschikbaar: deelvenster, statusbalk
+  const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+  const Plugins = window.Capacitor?.Plugins || {};
+  if (NATIVE) document.documentElement.classList.add('native');
+  const APP_VERSION = '2026-11-14.2';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1157,7 +1161,15 @@
     return state.sheetHeaders.map((h) => [(COLUMNS.find(([, name]) => n(name) === n(h))
       || COLUMNS.find(([, name]) => n(h).startsWith(n(name) + ' ') || n(h).startsWith(n(name) + '(')))?.[0] || '', h]);
   }
-  function download(name, content, type) {
+  async function download(name, content, type) {
+    if (NATIVE && Plugins.Filesystem && Plugins.Share) {
+      // In de app: bestand tijdelijk opslaan en het iOS-deelvenster openen (Bewaar in Bestanden, Mail, …)
+      try {
+        const res = await Plugins.Filesystem.writeFile({ path: name, data: content, directory: 'CACHE', encoding: 'utf8' });
+        await Plugins.Share.share({ title: name, url: res.uri });
+      } catch (err) { if (!/cancel/i.test(err?.message || '')) toast(err?.message || String(err)); }
+      return;
+    }
     const blob = new Blob([content], { type });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = name;
@@ -1362,7 +1374,7 @@
     card.classList.remove('hidden');
     card.innerHTML = `
       <h2>${tr('Koppel je Google Sheet')}</h2>
-      <p class="hint">${tr('Scan de QR-code die je Sheet laat zien, of plak de koppel-link hier.')}</p>
+      <p class="hint">${tr(NATIVE ? 'Plak hier de koppel-link uit je Google Sheet.' : 'Scan de QR-code die je Sheet laat zien, of plak de koppel-link hier.')}</p>
       <div class="stack">
         <input id="connect-input" placeholder="${esc(tr('Plak koppel-link…'))}" autocapitalize="off" autocorrect="off" spellcheck="false">
         <button type="button" class="btn primary" id="connect-btn">${tr('Koppelen')}</button>
@@ -1373,7 +1385,7 @@
           <li>${tr('Open je Google Sheet → <b>Extensies → Apps Script</b>. Wis alles, plak het script en klik op <b>Opslaan</b>.')}<br>
             <button type="button" class="btn small" id="copy-script">${tr('Kopieer script')}</button></li>
           <li>${tr('Klik <b>Implementeren → Nieuwe implementatie</b> → type <b>Web-app</b>. Zet <b>Wie heeft toegang</b> op <b>Iedereen</b> → <b>Implementeren</b> → geef toestemming.')}</li>
-          <li>${tr('Klik op de <b>Web-app-link</b> en scan de QR-code met je iPhone. Klaar!')}</li>
+          <li>${tr(NATIVE ? 'Klik op de <b>Web-app-link</b>, tik op <b>Kopieer koppel-link</b> en plak hem hierboven. Klaar!' : 'Klik op de <b>Web-app-link</b> en scan de QR-code met je iPhone. Klaar!')}</li>
         </ol>
         <p class="hint">${tr('Zegt Google “app niet geverifieerd”? Kies <b>Geavanceerd → Ga naar … (onveilig)</b>. Dat is normaal voor je eigen script.')}</p>
       </details>`;
@@ -1486,6 +1498,7 @@
     $$('#theme-seg button').forEach((b) => b.classList.toggle('on', b.dataset.theme === t));
     // Kleur van de iPhone-statusbalk (vaste waarden: de achtergrond animeert nog bij het wisselen)
     document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0e0e0d' : '#f2f1ee');
+    if (NATIVE) Plugins.StatusBar?.setStyle({ style: dark ? 'DARK' : 'LIGHT' }).catch(() => {});
   }
   $('#theme-btn').addEventListener('click', () => {
     state.settings.theme = effectiveTheme() === 'dark' ? 'light' : 'dark';
@@ -1512,7 +1525,7 @@
   applyLang();
   flush().then(() => pull(true));
 
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  if (!NATIVE && 'serviceWorker' in navigator && location.protocol !== 'file:') {
     // Nieuwe versie gepubliceerd → automatisch één keer herladen
     const hadController = !!navigator.serviceWorker.controller;
     let reloading = false;

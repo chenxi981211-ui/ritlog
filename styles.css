@@ -448,3 +448,6 @@ dialog label { margin-top: 12px; }
 .car-info .car-name, .car-info .car-meta { display: block; }
 #dash-dialog { padding-bottom: 0; }
 #dash-dialog .dialog-actions { position: sticky; bottom: 0; margin: 14px -22px 0; padding: 12px 22px calc(16px + env(safe-area-inset-bottom)); background: var(--surface); box-shadow: 0 -1px 0 var(--line); }
+
+/* In de iOS-app: geen tekstselectie of lang-drukmenu op knoppen */
+.native button, .native .tabbar, .native .topbar, .native .stat, .native .trip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
