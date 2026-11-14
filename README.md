@@ -20,6 +20,9 @@ A small web app for iPhone that logs trips straight into the existing Google She
 | **Trips list** | Filter by **Year** (starts on the current year) and **Month** (starts empty, so the whole year shows). The description is the title, with the ride number and addresses below it. 100 rides are shown at a time, with **Load more rides** at the bottom. |
 | **Summary** | For a month or a whole year: **total km** (trips + business and private detours), **reimbursement**, the **private km balance** (500 km per calendar year minus private trips and private detours; changeable under Settings) and the **current odometer**, plus the number of trips and the longest trip. |
 | **Insights** | Averages per ride and per driving day, rides per day, busiest day, longest streak of working days, detour share, km per week/month and per weekday, where the km go (commute, other business, private, detours), most visited addresses, an odometer check against the logged km, the most-driven routes and, for the current year, a forecast to year-end. |
+| **Customizable summary** | Tap the sliders icon next to the period to drag widgets into a new order, remove them, or add them back. **Default** restores the original layout. |
+| **My car** | Give the car a name, make and model, plate and colour (Settings → My car, or tap the car on the Summary). A small toy-style 3D car is built from that: the shape (hatchback, sedan, estate, SUV, van, sports car) is guessed from the model and can be changed. Drag it to spin it. |
+| **Light / dark** | The sun/moon button at the top switches theme; Settings → Appearance also offers *Automatic* (follows the phone). |
 | **Home screen app** | Opens full-screen like a normal app, with its own icon. |
 | **English / Dutch** | Tap **NL EN** at the top to switch the app's language. It's remembered on each phone. Anything written to the Google Sheet stays Dutch, so his records stay consistent. |
 
@@ -62,4 +65,5 @@ Live at **https://chenxi981211-ui.github.io/ritlog/**
 - `config.js`: generic defaults only. Personal values come from the setup link.
 - `private/`: his personal config and setup link (git-ignored, Mac only)
 - `sw.js`, `manifest.webmanifest`, `icons/`: offline support and home-screen icon
+- `car3d.js`: the 3D car; `vendor/`: three.js 0.160.0 (MIT licence, see `vendor/three-LICENSE.txt`)
 - `apps-script/Code.gs`: the Google Sheet connection

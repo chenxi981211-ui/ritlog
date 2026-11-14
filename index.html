@@ -4,7 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ritlog</title>
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#f2f1ee">
+  <script>
+    // Thema vóór het tekenen zetten, zodat er geen flits van het verkeerde thema is
+    try { const t = localStorage.getItem('ritlog.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -18,8 +23,9 @@
   <header class="topbar">
     <h1 id="screen-title" data-dyn>Rit loggen</h1>
     <div class="top-actions">
-      <button class="lang-btn" id="lang-btn" type="button" data-dyn aria-label="Language / Taal"><b>NL</b> EN</button>
-      <button class="sync-pill" id="sync-pill" type="button" aria-live="polite" data-dyn>…</button>
+      <button class="round-btn" id="theme-btn" type="button" data-dyn aria-label="Licht of donker"></button>
+      <button class="round-btn lang-btn" id="lang-btn" type="button" data-dyn aria-label="Language / Taal">EN</button>
+      <button class="round-btn sync-pill" id="sync-pill" type="button" aria-live="polite" data-dyn>…</button>
     </div>
   </header>
 
@@ -130,7 +136,10 @@
 
     <!-- OVERZICHT -->
     <section class="screen" id="screen-summary" data-title="Overzicht">
-      <select id="summary-month" aria-label="Maand" data-dyn></select>
+      <div class="summary-bar">
+        <select id="summary-month" aria-label="Maand" data-dyn></select>
+        <button type="button" class="round-btn" id="dash-edit" aria-label="Overzicht aanpassen"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+      </div>
       <div id="summary" data-dyn></div>
       <div class="card">
         <h2>Exporteren</h2>
@@ -144,6 +153,31 @@
 
     <!-- INSTELLINGEN -->
     <section class="screen" id="screen-settings" data-title="Instellingen">
+      <div class="section-label">Mijn auto</div>
+      <div class="card list-card">
+        <button type="button" class="list-row" id="car-row">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v2H3z"/><circle cx="7.5" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/><path d="M5 11h14"/></svg></span>
+          <span class="grow"><strong id="car-row-title" data-dyn></strong><small id="car-row-sub" data-dyn></small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <div class="section-label">Weergave</div>
+      <div class="card">
+        <label>Thema</label>
+        <div class="segmented" id="theme-seg">
+          <button type="button" data-theme="system">Automatisch</button>
+          <button type="button" data-theme="light">Licht</button>
+          <button type="button" data-theme="dark">Donker</button>
+        </div>
+        <label>Taal</label>
+        <div class="segmented" id="lang-seg">
+          <button type="button" data-lang="nl">Nederlands</button>
+          <button type="button" data-lang="en">English</button>
+        </div>
+      </div>
+
+      <div class="section-label">Koppeling</div>
       <div class="card">
         <h2>Instellingen-link</h2>
         <p class="hint">Plak hier je persoonlijke link (met #setup=…) om plekken, auto en Sheet-koppeling in één keer te laden.</p>
@@ -174,6 +208,7 @@
         </div>
       </div>
 
+      <div class="section-label">Ritten</div>
       <div class="card">
         <div class="row between"><h2>Vaste plekken</h2><button type="button" class="btn small ghost" id="add-place">+ Plek</button></div>
         <div id="place-list" data-dyn></div>
@@ -184,8 +219,6 @@
         <div class="grid2">
           <div><label for="s-rate">Vergoeding per km (€)</label><input id="s-rate" inputmode="decimal"></div>
           <div><label for="s-type">Type rit</label><select id="s-type"><option value="Zakelijk">Zakelijk</option><option value="Privé">Privé</option></select></div>
-          <div><label for="s-car">Auto</label><input id="s-car"></div>
-          <div><label for="s-plate">Kenteken</label><input id="s-plate"></div>
           <div><label for="s-driver">Rijder</label><input id="s-driver"></div>
           <div><label for="s-odo">Laatste km-stand</label><input id="s-odo" inputmode="numeric"></div>
           <div><label for="s-priv">Privé-km per jaar</label><input id="s-priv" inputmode="numeric"></div>
@@ -232,6 +265,42 @@
         <button type="submit" class="btn primary">Bewaar</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="car-dialog">
+    <form method="dialog" id="car-form">
+      <h2>Mijn auto</h2>
+      <div class="card car-card" style="box-shadow:none;background:var(--surface-2);margin:12px 0 4px">
+        <div class="car-stage" id="car-preview"></div>
+      </div>
+      <label for="c-name">Naam</label>
+      <input id="c-name" name="carName" placeholder="Bijv. Bolletje" maxlength="24">
+      <label for="c-model">Merk en model</label>
+      <input id="c-model" name="car" placeholder="Bijv. Toyota Aygo">
+      <label for="c-plate">Kenteken</label>
+      <input id="c-plate" name="plate" placeholder="AB-123-C" autocapitalize="characters">
+      <label>Kleur</label>
+      <div class="swatches" id="c-colors" data-dyn></div>
+      <label>Vorm</label>
+      <div class="segmented body-seg" id="c-body" data-dyn></div>
+      <div class="row gap dialog-actions">
+        <button type="button" class="btn ghost" id="c-cancel">Annuleren</button>
+        <button type="submit" class="btn primary">Bewaar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dash-dialog">
+    <h2>Overzicht aanpassen</h2>
+    <p class="hint">Sleep om de volgorde te wijzigen. Haal weg wat je niet nodig hebt, of voeg het later weer toe.</p>
+    <div class="section-label" style="margin-left:2px">Zichtbaar</div>
+    <ul class="dash-list" id="dash-on" data-dyn></ul>
+    <div class="section-label" style="margin-left:2px">Toevoegen</div>
+    <ul class="dash-list dash-add" id="dash-off" data-dyn></ul>
+    <div class="row gap dialog-actions">
+      <button type="button" class="btn ghost" id="dash-reset">Standaard</button>
+      <button type="button" class="btn primary" id="dash-done">Klaar</button>
+    </div>
   </dialog>
 
   <div class="toast hidden" id="toast" role="status" data-dyn></div>

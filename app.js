@@ -5,7 +5,7 @@
   'use strict';
 
   const STORE_KEY = 'ritlog.v1';
-  const APP_VERSION = '2026-11-02.1';
+  const APP_VERSION = '2026-11-14.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -22,6 +22,17 @@
 
   /* ---------- helpers ---------- */
   let refreshing = false; // Sheet wordt opnieuw opgehaald (ververs-knop)
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const ICON = {
+    sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+    moon: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
+    home: svg('<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>'),
+    work: svg('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 12h18"/>'),
+    pin: svg('<path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>'),
+    grip: svg('<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>'),
+    minus: svg('<path d="M6 12h12"/>'),
+    plus: svg('<path d="M12 6v12M6 12h12"/>'),
+  };
   const ICON_REFRESH = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>';
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -514,6 +525,7 @@
     const next = nextTripNo(todayISO());
     $('#quick-routes').innerHTML = routes.map((r, i) => `
       <button type="button" class="quick-btn${i === 0 ? ' hero' : ''}" data-q="${i}">
+        <span class="q-ico">${{ home: ICON.home, work: ICON.work }[placeByAddress(r.to)?.role] || ICON.pin}</span>
         ${i === 0 ? `<span class="tag">${tr('Voorstel · rit {n}', { n: next })}</span>` : r.tag ? `<span class="tag">${esc(r.tag)}</span>` : ''}
         <strong>${esc(r.label)}</strong>
         <small>${r.km ? fmtKm(r.km) + ' km' : tr('afstand berekenen')}</small>
@@ -617,15 +629,17 @@
     const pending = state.trips.filter((t) => /add|update|delete/.test(t.sync)).length;
     const errors = state.trips.filter((t) => /^error/.test(t.sync)).length;
     const local = state.trips.filter((t) => t.sync === 'local').length;
-    pill.className = 'sync-pill' + (refreshing ? ' spinning' : '');
+    pill.className = 'round-btn sync-pill' + (refreshing ? ' spinning' : '');
     let text, cls = '';
     if (!state.settings.scriptUrl) text = local ? tr('{n} lokaal', { n: local }) : tr('Niet gekoppeld');
     else if (flushing) { text = tr('Versturen…'); cls = 'pending'; }
     else if (pending) { text = tr('{n} in wachtrij', { n: pending }) + (errors ? ' !' : ''); cls = 'pending'; }
     else { text = navigator.onLine ? tr('Bijgewerkt') : 'Offline'; cls = 'ok'; }
+    if (errors) cls = 'error';
     if (cls) pill.classList.add(cls);
-    // Ververs-icoon zodra er een Sheet gekoppeld is: tikken = opnieuw ophalen
-    pill.innerHTML = (state.settings.scriptUrl ? ICON_REFRESH : '') + `<span>${esc(text)}</span>`;
+    // Rond ververs-icoon met een statusstipje (groen = bijgewerkt, oranje = wachtrij, rood = fout)
+    pill.innerHTML = ICON_REFRESH + `<span class="sync-dot">${pending ? pending : ''}</span>`;
+    pill.title = text;
     pill.setAttribute('aria-label', state.settings.scriptUrl ? tr('Vernieuwen uit Google Sheet') + ' — ' + text : text);
     renderConnectCard();
   }
@@ -845,35 +859,51 @@
       <div class="legend">${rows.map(([k, label]) => `<div><span class="swatch seg-${k}"></span><span class="grow">${esc(tr(label))}</span><span class="muted">${pct(parts[k])}</span><b>${fmtKm(parts[k])} km</b></div>`).join('')}</div>
     </div>`;
   }
-  function insightsHtml(st, trips) {
-    const n = trips.length;
-    const tile = (value, label, sub) => `<div class="stat"><b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
-    const b = st.busiest && st.byDay[st.busiest];
-    const detourKm = st.parts.detour;
-    return `<h2 class="section-title">${esc(tr('Inzichten'))}</h2>
-      <div class="stats small">
-        ${tile(`${fmtKm(st.totalKm / n)} km`, tr('gem. per rit'))}
-        ${tile(`${fmtKm(st.totalKm / st.days)} km`, tr('gem. per rijdag'))}
-        ${tile(fmtDec1(n / st.days), tr('ritten per rijdag'))}
-        ${tile(`${fmtKm(b.km)} km`, tr('drukste dag'), tr(b.n === 1 ? '{d} · {n} rit' : '{d} · {n} ritten', { d: shortDate(st.busiest), n: b.n }))}
-        ${tile(tr(st.streak === 1 ? '{n} dag' : '{n} dagen', { n: st.streak }), tr('langste reeks'), tr('werkdagen op rij'))}
-        ${tile(`${st.totalKm ? fmtDec1((detourKm / st.totalKm) * 100) : fmtDec1(0)}%`, tr('omrijden'), tr(st.detourRides === 1 ? '{n} rit · {km} km' : '{n} ritten · {km} km', { n: st.detourRides, km: fmtKm(detourKm) }))}
-      </div>
-      ${st.forecast ? `<div class="card"><h2>${esc(tr('Verwachting eind {y}', { y: trips[0].date.slice(0, 4) }))}</h2>
-        <p class="forecast"><b>${fmtInt(st.forecast.km)} km</b><b>${fmtEur(st.forecast.fee)}</b></p>
-        <p class="hint">${esc(tr('Als hij zo doorrijdt als sinds de eerste rit van dit jaar. Vakanties zijn niet meegerekend.'))}</p></div>` : ''}
-      ${columnChart(tr(st.timeline.length === 12 ? 'Km per maand' : 'Km per week'), st.timeline)}
-      ${columnChart(tr('Km per weekdag'), st.weekdays)}
-      ${splitChart(st.parts, st.totalKm)}
-      ${st.destinations.length ? `<div class="card"><h2>${esc(tr('Meest bezocht'))}</h2><p class="hint">${esc(tr('{n} verschillende adressen, naast thuis en werk', { n: st.places }))}</p>
-        <div class="routes-list">${st.destinations.map((d) => `<div><span>${esc(placeName(d.addr))}</span><b>×${d.n}</b></div>`).join('')}</div></div>` : ''}
-      ${st.odo ? `<div class="card"><h2>${esc(tr('Controle km-teller'))}</h2><div class="routes-list">
-        <div><span>${esc(tr('Gereden volgens km-teller'))}</span><b>${fmtOdo(st.odo.driven)} km</b></div>
-        <div><span>${esc(tr('Geregistreerd in ritten'))}</span><b>${fmtKm(st.odo.logged)} km</b></div>
-        <div><span>${esc(tr('Verschil'))}</span><b>${fmtKm(st.odo.diff)} km</b></div>
-        <div><span>${esc(tr('Gaten tussen ritten'))}</span><b>${st.odo.gaps ? `${st.odo.gaps} · ${fmtOdo(st.odo.gapKm)} km` : esc(tr('geen'))}</b></div>
-      </div></div>` : ''}`;
+  /* ---------- Overzicht als aanpasbare widgets ---------- */
+  // kind: 'tile' = halve breedte (naast elkaar), 'card' = volle breedte, 'line' = regel tekst
+  const tile = (value, label, sub, cls = '') => `<div class="stat ${cls}"><b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
+  const WIDGETS = [
+    { id: 'car', kind: 'card', name: 'Mijn auto', render: (c) => carCardHtml(c) },
+    { id: 'total', kind: 'tile', name: 'Totaal km', render: (c) => tile(`${fmtKm(c.km)} km`, tr('totaal'), tr('incl. omrijkilometers')) },
+    { id: 'fee', kind: 'tile', name: 'Vergoeding', render: (c) => tile(fmtEur(c.fee), tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })) },
+    { id: 'private', kind: 'tile', name: 'Privé-saldo', render: (c) => tile(`${fmtKm(c.privLeft)} km`, tr('privé-saldo {y}', { y: c.year }), tr('{u} van {a} km gebruikt', { u: fmtKm(c.privUsed), a: privAllowance() }), c.privLeft < 0 ? 'over' : '') },
+    { id: 'odometer', kind: 'tile', name: 'Huidige km-stand', render: (c) => tile(c.odoNow ? fmtOdo(c.odoNow) : '–', tr('huidige km-stand')) },
+    { id: 'line', kind: 'line', name: 'Ritten en langste rit', render: (c) => (c.n ? `<p class="hint summary-line">${tr(c.days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: c.days }).replace(/^/, c.n + ' ')}${c.longest ? ` · ${tr('langste rit')}: ${fmtKm(c.longest.km)} km (${esc(placeName(c.longest.from))} → ${esc(placeName(c.longest.to))})` : ''}</p>` : '') },
+    { id: 'avgRide', kind: 'tile', name: 'Gemiddeld per rit', render: (c) => (c.st ? tile(`${fmtKm(c.st.totalKm / c.n)} km`, tr('gem. per rit')) : '') },
+    { id: 'avgDay', kind: 'tile', name: 'Gemiddeld per rijdag', render: (c) => (c.st ? tile(`${fmtKm(c.st.totalKm / c.st.days)} km`, tr('gem. per rijdag')) : '') },
+    { id: 'perDay', kind: 'tile', name: 'Ritten per rijdag', render: (c) => (c.st ? tile(fmtDec1(c.n / c.st.days), tr('ritten per rijdag')) : '') },
+    { id: 'busiest', kind: 'tile', name: 'Drukste dag', render: (c) => { if (!c.st) return ''; const b = c.st.byDay[c.st.busiest]; return tile(`${fmtKm(b.km)} km`, tr('drukste dag'), tr(b.n === 1 ? '{d} · {n} rit' : '{d} · {n} ritten', { d: shortDate(c.st.busiest), n: b.n })); } },
+    { id: 'streak', kind: 'tile', name: 'Langste reeks', render: (c) => (c.st ? tile(tr(c.st.streak === 1 ? '{n} dag' : '{n} dagen', { n: c.st.streak }), tr('langste reeks'), tr('werkdagen op rij')) : '') },
+    { id: 'detours', kind: 'tile', name: 'Omrijden', render: (c) => { if (!c.st) return ''; const d = c.st.parts.detour; return tile(`${c.st.totalKm ? fmtDec1((d / c.st.totalKm) * 100) : fmtDec1(0)}%`, tr('omrijden'), tr(c.st.detourRides === 1 ? '{n} rit · {km} km' : '{n} ritten · {km} km', { n: c.st.detourRides, km: fmtKm(d) })); } },
+    { id: 'forecast', kind: 'card', name: 'Verwachting eind van het jaar', render: (c) => (c.st?.forecast ? `<div class="card"><h2>${esc(tr('Verwachting eind {y}', { y: c.year }))}</h2>
+        <p class="forecast"><b>${fmtInt(c.st.forecast.km)} km</b><b>${fmtEur(c.st.forecast.fee)}</b></p>
+        <p class="hint">${esc(tr('Als hij zo doorrijdt als sinds de eerste rit van dit jaar. Vakanties zijn niet meegerekend.'))}</p></div>` : '') },
+    { id: 'timeline', kind: 'card', name: 'Km per week of maand', render: (c) => (c.st ? columnChart(tr(c.st.timeline.length === 12 ? 'Km per maand' : 'Km per week'), c.st.timeline) : '') },
+    { id: 'weekday', kind: 'card', name: 'Km per weekdag', render: (c) => (c.st ? columnChart(tr('Km per weekdag'), c.st.weekdays) : '') },
+    { id: 'split', kind: 'card', name: 'Waar gaan de kilometers heen?', render: (c) => (c.st ? splitChart(c.st.parts, c.st.totalKm) : '') },
+    { id: 'places', kind: 'card', name: 'Meest bezocht', render: (c) => (c.st?.destinations.length ? `<div class="card"><h2>${esc(tr('Meest bezocht'))}</h2><p class="hint">${esc(tr('{n} verschillende adressen, naast thuis en werk', { n: c.st.places }))}</p>
+        <div class="routes-list">${c.st.destinations.map((d) => `<div><span>${esc(placeName(d.addr))}</span><b>×${d.n}</b></div>`).join('')}</div></div>` : '') },
+    { id: 'odoCheck', kind: 'card', name: 'Controle km-teller', render: (c) => (c.st?.odo ? `<div class="card"><h2>${esc(tr('Controle km-teller'))}</h2><div class="routes-list">
+        <div><span>${esc(tr('Gereden volgens km-teller'))}</span><b>${fmtOdo(c.st.odo.driven)} km</b></div>
+        <div><span>${esc(tr('Geregistreerd in ritten'))}</span><b>${fmtKm(c.st.odo.logged)} km</b></div>
+        <div><span>${esc(tr('Verschil'))}</span><b>${fmtKm(c.st.odo.diff)} km</b></div>
+        <div><span>${esc(tr('Gaten tussen ritten'))}</span><b>${c.st.odo.gaps ? `${c.st.odo.gaps} · ${fmtOdo(c.st.odo.gapKm)} km` : esc(tr('geen'))}</b></div>
+      </div></div>` : '') },
+    { id: 'routes', kind: 'card', name: 'Routes', render: (c) => (c.n ? `<div class="card"><h2>${esc(tr('Routes'))}</h2><div class="routes-list">${Object.entries(c.routes).sort((x, y) => y[1].n - x[1].n).slice(0, 8)
+        .map(([k, r]) => `<div><span>${esc(k)} <small class="hint">×${r.n}</small></span><b>${fmtKm(r.km)} km</b></div>`).join('')}</div></div>` : '') },
+  ];
+  const WIDGET = Object.fromEntries(WIDGETS.map((w) => [w.id, w]));
+  // Opgeslagen volgorde + verborgen widgets; nieuwe widgets uit latere versies komen er vanzelf bij
+  function dashOrder() {
+    const saved = state.settings.dash;
+    if (!saved) return { on: WIDGETS.map((w) => w.id), off: [] };
+    const known = new Set([...saved.on, ...saved.off]);
+    return {
+      on: [...saved.on.filter((id) => WIDGET[id]), ...WIDGETS.map((w) => w.id).filter((id) => !known.has(id))],
+      off: saved.off.filter((id) => WIDGET[id]),
+    };
   }
+  function setDash(on, off) { state.settings.dash = { on, off }; save(); }
 
   function renderSummary() {
     const sel = $('#summary-month');
@@ -881,32 +911,224 @@
     const period = sel.value;
     const trips = liveTrips().filter((t) => t.date.startsWith(period));
     const sum = (list, f) => list.reduce((a, t) => a + (f(t) || 0), 0);
-    // Totaal = afstand + zakelijke + privé omrijkilometers
-    const km = sum(trips, tripKm);
-    // Zoals de Sheet: zakelijke afstand × tarief, pas aan het eind afronden
-    const fee = Math.round(sum(trips, (t) => (t.type === 'Privé' ? 0 : t.km || 0)) * state.settings.rate * 100) / 100;
-    // Privé-saldo per kalenderjaar: jaartegoed − privéritten − privé omrijkilometers
     const year = period.slice(0, 4);
     const yearTrips = liveTrips().filter((t) => t.date.startsWith(year));
     const privUsed = sum(yearTrips, (t) => (t.type === 'Privé' ? t.km || 0 : 0) + (t.detourPriv || 0));
-    const privLeft = privAllowance() - privUsed;
-    const odoNow = latestOdo();
-    const days = new Set(trips.map((t) => t.date)).size;
-    const longest = trips.reduce((best, t) => ((t.km || 0) > (best?.km || 0) ? t : best), null);
     const routes = {};
     trips.forEach((t) => { const k = placeName(t.from) + ' → ' + placeName(t.to); (routes[k] ||= { n: 0, km: 0 }); routes[k].n++; routes[k].km += t.km || 0; });
-    $('#summary').innerHTML = `
-      <div class="stats">
-        <div class="stat"><b>${fmtKm(km)} km</b><span>${tr('totaal')}<small class="stat-sub">${tr('incl. omrijkilometers')}</small></span></div>
-        <div class="stat"><b>${fmtEur(fee)}</b><span>${tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })}</span></div>
-        <div class="stat${privLeft < 0 ? ' over' : ''}"><b>${fmtKm(privLeft)} km</b><span>${tr('privé-saldo {y}', { y: year })}<small class="stat-sub">${tr('{u} van {a} km gebruikt', { u: fmtKm(privUsed), a: privAllowance() })}</small></span></div>
-        <div class="stat"><b>${odoNow ? fmtOdo(odoNow) : '–'}</b><span>${tr('huidige km-stand')}</span></div>
-      </div>
-      ${trips.length ? `<p class="hint">${tr(days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: days }).replace(/^/, trips.length + ' ')}${longest ? ` · ${tr('langste rit')}: ${fmtKm(longest.km)} km (${esc(placeName(longest.from))} → ${esc(placeName(longest.to))})` : ''}</p>` : ''}
-      ${trips.length ? insightsHtml(rideStats(trips, period), trips) : ''}
-      ${trips.length ? `<div class="card"><h2>Routes</h2><div class="routes-list">${Object.entries(routes).sort((a, b) => b[1].n - a[1].n).slice(0, 8)
-        .map(([k, r]) => `<div><span>${esc(k)} <small class="hint">×${r.n}</small></span><b>${fmtKm(r.km)} km</b></div>`).join('')}</div></div>` : ''}`;
+    const ctx = {
+      period, year, trips, n: trips.length, routes, privUsed,
+      // Totaal = afstand + zakelijke + privé omrijkilometers
+      km: sum(trips, tripKm),
+      // Zoals de Sheet: zakelijke afstand × tarief, pas aan het eind afronden
+      fee: Math.round(sum(trips, (t) => (t.type === 'Privé' ? 0 : t.km || 0)) * state.settings.rate * 100) / 100,
+      // Privé-saldo per kalenderjaar: jaartegoed − privéritten − privé omrijkilometers
+      privLeft: privAllowance() - privUsed,
+      odoNow: latestOdo(),
+      days: new Set(trips.map((t) => t.date)).size,
+      longest: trips.reduce((best, t) => ((t.km || 0) > (best?.km || 0) ? t : best), null),
+      st: trips.length ? rideStats(trips, period) : null,
+    };
+    let html = '', tiles = [];
+    const flushTiles = () => { if (tiles.length) { html += `<div class="stats">${tiles.join('')}</div>`; tiles = []; } };
+    dashOrder().on.forEach((id) => {
+      const w = WIDGET[id];
+      const out = w.render(ctx);
+      if (!out) return;
+      if (w.kind === 'tile') tiles.push(out); else { flushTiles(); html += out; }
+    });
+    flushTiles();
+    $('#summary').innerHTML = html || `<div class="empty">${esc(tr('Je overzicht is leeg. Tik op het aanpas-icoon om onderdelen toe te voegen.'))}</div>`;
+    placeCarStage();
   }
+
+  /* ---------- Overzicht aanpassen ---------- */
+  const kindLabel = (w) => tr(w.kind === 'tile' ? 'Tegel' : w.kind === 'line' ? 'Regel' : 'Kaart');
+  function renderDashEditor() {
+    const { on, off } = dashOrder();
+    const item = (id, active) => {
+      const w = WIDGET[id], name = tr(w.name);
+      return `<li class="dash-item" data-id="${id}">
+        ${active ? `<button type="button" class="handle" aria-label="${esc(tr('Verplaats {x}', { x: name }))}">${ICON.grip}</button>` : ''}
+        <span class="grow">${esc(name)}<span class="d-kind"> · ${esc(kindLabel(w))}</span></span>
+        <button type="button" class="d-btn${active ? '' : ' add'}" data-act="${active ? 'off' : 'on'}" aria-label="${esc(tr(active ? 'Verwijder {x}' : 'Voeg {x} toe', { x: name }))}">${active ? ICON.minus : ICON.plus}</button>
+      </li>`;
+    };
+    $('#dash-on').innerHTML = on.map((id) => item(id, true)).join('') || `<p class="hint">${esc(tr('Nog niets zichtbaar.'))}</p>`;
+    $('#dash-off').innerHTML = off.map((id) => item(id, false)).join('') || `<p class="hint">${esc(tr('Alles staat al op je overzicht.'))}</p>`;
+  }
+  $('#dash-edit').addEventListener('click', () => { renderDashEditor(); $('#dash-dialog').showModal(); });
+  $('#dash-done').addEventListener('click', () => $('#dash-dialog').close());
+  $('#dash-reset').addEventListener('click', () => { delete state.settings.dash; save(); renderDashEditor(); renderSummary(); });
+  $('#dash-dialog').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const id = btn.closest('[data-id]').dataset.id;
+    let { on, off } = dashOrder();
+    if (btn.dataset.act === 'off') { on = on.filter((x) => x !== id); off = [id, ...off]; }
+    else { off = off.filter((x) => x !== id); on = [...on, id]; }
+    setDash(on, off); renderDashEditor(); renderSummary();
+  });
+  // Slepen aan het grip-icoon; pijltjestoetsen werken ook
+  let drag = null;
+  $('#dash-on').addEventListener('pointerdown', (e) => {
+    const h = e.target.closest('.handle'); if (!h) return;
+    e.preventDefault();
+    const li = h.closest('.dash-item');
+    const items = [...$('#dash-on').querySelectorAll('.dash-item')];
+    const rects = items.map((i) => i.getBoundingClientRect());
+    const from = items.indexOf(li);
+    drag = { li, items, rects, from, to: from, y0: e.clientY, step: rects[from].height + 8 };
+    h.setPointerCapture(e.pointerId);
+    li.classList.add('dragging');
+    items.forEach((i) => { if (i !== li) i.classList.add('shift'); });
+  });
+  $('#dash-on').addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const { li, items, rects, from, step } = drag;
+    const dy = e.clientY - drag.y0;
+    li.style.transform = `translateY(${dy}px)`;
+    const mid = rects[from].top + rects[from].height / 2 + dy;
+    let to = from;
+    rects.forEach((r, i) => {
+      const m = r.top + r.height / 2;
+      if (i < from && mid < m) to = Math.min(to, i);
+      if (i > from && mid > m) to = Math.max(to, i);
+    });
+    drag.to = to;
+    items.forEach((it, i) => {
+      if (it === li) return;
+      const shift = from < to && i > from && i <= to ? -step : to < from && i >= to && i < from ? step : 0;
+      it.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    const { from, to, li } = drag;
+    drag = null;
+    const { on, off } = dashOrder();
+    if (to !== from) { const [id] = on.splice(from, 1); on.splice(to, 0, id); setDash(on, off); }
+    li.classList.remove('dragging');
+    renderDashEditor(); renderSummary();
+  };
+  $('#dash-on').addEventListener('pointerup', endDrag);
+  $('#dash-on').addEventListener('pointercancel', endDrag);
+  $('#dash-on').addEventListener('keydown', (e) => {
+    if (!e.target.closest('.handle') || !/^Arrow(Up|Down)$/.test(e.key)) return;
+    e.preventDefault();
+    const id = e.target.closest('[data-id]').dataset.id;
+    const { on, off } = dashOrder();
+    const i = on.indexOf(id), j = i + (e.key === 'ArrowUp' ? -1 : 1);
+    if (j < 0 || j >= on.length) return;
+    [on[i], on[j]] = [on[j], on[i]];
+    setDash(on, off); renderDashEditor(); renderSummary();
+    $(`#dash-on [data-id="${id}"] .handle`).focus();
+  });
+
+  /* ---------- Mijn auto ---------- */
+  const CAR_COLORS = ['#3b7ddd', '#e5484d', '#f08c3a', '#f2c94c', '#3f9b6b', '#9fd8c4', '#8e6cd8', '#f2a7c3', '#f4f4f2', '#b9bcc2', '#6b7078', '#2a2b2e'];
+  const BODY_TYPES = [['hatch', 'Hatchback'], ['sedan', 'Sedan'], ['wagon', 'Stationwagen'], ['suv', 'SUV'], ['van', 'Busje'], ['sport', 'Sportwagen']];
+  // Vorm raden uit merk en model; valt terug op een hatchback
+  function guessBody(model) {
+    const m = ` ${String(model || '').toLowerCase()} `;
+    if (/transit|vito|sprinter|kangoo|caddy|transporter|berlingo|partner|trafic|vivaro|ducato|crafter|jumpy|expert|proace|master|citan|townstar|combo cargo|id\. ?buzz|\bbus\b|\bvan\b/.test(m)) return 'van';
+    if (/911|porsche (718|boxster|cayman)|mx-?5|miata|supra|\bz4\b|\btt\b|corvette|mustang|ferrari|lamborghini|f-type|amg gt|\bgt86\b|\bgr86\b|\bbrz\b/.test(m)) return 'sport';
+    if (/estate|touring|variant|avant|combi|kombi|\bsw\b|break|sports tourer|stationwagen|shooting brake|\bv60\b|\bv90\b/.test(m)) return 'wagon';
+    if (/suv|rav ?4|tiguan|qashqai|kuga|tucson|sportage|\bx[1-7]\b|\bq[2-8]\b|xc ?40|xc ?60|xc ?90|ex ?30|model y|niro|kona|juke|cross|c-hr|\bchr\b|2008|3008|5008|captur|duster|t-roc|t-cross|karoq|kodiaq|ariya|id\. ?[4-7]|enyaq|ev ?[69]|ioniq ?5|cx-|mokka|countryman|evoque|range rover|defender|wrangler|macan|cayenne|outlander|tiguan|ateca|arona|formentor|bz4x|aircross/.test(m)) return 'suv';
+    if (/model [3s]|\ba[3-8] (sedan|limousine)|\ba[4-8]\b|3[- ]?serie|5[- ]?serie|[ce][- ]?klasse|c-class|e-class|passat|octavia|superb|accord|camry|mazda ?6|insignia|\bs60\b|\bs90\b|ioniq ?6|\bi4\b|\bi5\b|polestar 2|\bseal\b|corolla sedan/.test(m)) return 'sedan';
+    return 'hatch';
+  }
+  const carOpts = (s = state.settings) => ({
+    color: s.carColor || CAR_COLORS[0],
+    body: s.carBody && s.carBody !== 'auto' ? s.carBody : guessBody(s.car),
+  });
+  let carModule = null;
+  const loadCarModule = () => (carModule ||= import('./car3d.js'));
+  // Eén vaste 3D-weergave voor het overzicht, die bij elke herteken-beurt mee verhuist
+  const carStage = document.createElement('div');
+  carStage.className = 'car-stage';
+  carStage.setAttribute('aria-label', 'Mijn auto');
+  let carView = null, carViewKey = '';
+  async function ensureCarView() {
+    const key = JSON.stringify(carOpts());
+    if (carView && key === carViewKey) return;
+    try {
+      const { mountCar } = await loadCarModule();
+      if (carView) carView.update(carOpts()); else carView = mountCar(carStage, carOpts());
+      carViewKey = key;
+    } catch (err) {
+      console.warn(err);
+      carStage.innerHTML = `<div class="car-fallback">${esc(tr('3D niet beschikbaar op dit toestel'))}</div>`;
+    }
+  }
+  function placeCarStage() {
+    const slot = $('#summary [data-car-slot]');
+    if (!slot) return;
+    slot.replaceWith(carStage);
+    ensureCarView();
+  }
+  function carCardHtml(c) {
+    const s = state.settings;
+    const meta = [s.car, s.plate ? `<span class="plate">${esc(s.plate)}</span>` : ''].filter(Boolean);
+    const total = liveTrips().length;
+    return `<div class="card car-card"><div data-car-slot></div>
+      <button type="button" class="list-row car-info" id="car-open" style="padding-top:2px">
+        <span class="grow">
+          <span class="car-name${s.carName ? '' : ' placeholder'}">${esc(s.carName || tr('Geef je auto een naam'))}</span>
+          <span class="car-meta">${meta.length ? meta.map((x) => (x.startsWith('<') ? x : esc(x))).join(' · ') : esc(tr('Tik om je auto toe te voegen'))}</span>
+        </span>
+        <span class="car-odo"><b>${fmtOdo(total)}</b><span>${esc(tr(total === 1 ? 'rit samen' : 'ritten samen'))}</span></span>
+      </button></div>`;
+  }
+  function renderCarRow() {
+    const s = state.settings;
+    $('#car-row-title').textContent = s.carName || tr('Geef je auto een naam');
+    $('#car-row-sub').textContent = [s.car, s.plate].filter(Boolean).join(' · ') || tr('Merk, model, kleur en kenteken');
+  }
+
+  // Dialoog: naam, model, kenteken, kleur en vorm, met live 3D-voorbeeld
+  let previewView = null;
+  const draft = {};
+  function renderCarPickers() {
+    $('#c-colors').innerHTML = CAR_COLORS.map((c) => `<button type="button" data-color="${c}" style="background:${c}" class="${c === draft.carColor ? 'on' : ''}" aria-label="${c}"></button>`).join('');
+    const guess = BODY_TYPES.find(([k]) => k === guessBody($('#c-model').value))[1];
+    $('#c-body').innerHTML = [['auto', `${tr('Automatisch')} (${tr(guess)})`], ...BODY_TYPES.map(([k, l]) => [k, tr(l)])]
+      .map(([k, l]) => `<button type="button" data-body="${k}" class="${k === draft.carBody ? 'on' : ''}">${esc(l)}</button>`).join('');
+  }
+  const draftOpts = () => carOpts({ ...draft, car: $('#c-model').value });
+  function updatePreview() { previewView?.update(draftOpts()); }
+  async function openCarDialog() {
+    const s = state.settings;
+    Object.assign(draft, { carColor: s.carColor || CAR_COLORS[0], carBody: s.carBody || 'auto' });
+    $('#c-name').value = s.carName || ''; $('#c-model').value = s.car || ''; $('#c-plate').value = s.plate || '';
+    renderCarPickers();
+    $('#car-dialog').showModal();
+    try {
+      const { mountCar } = await loadCarModule();
+      previewView?.destroy();
+      previewView = mountCar($('#car-preview'), draftOpts());
+    } catch { $('#car-preview').innerHTML = `<div class="car-fallback">${esc(tr('3D niet beschikbaar op dit toestel'))}</div>`; }
+  }
+  $('#car-row').addEventListener('click', openCarDialog);
+  $('#summary').addEventListener('click', (e) => { if (e.target.closest('#car-open')) openCarDialog(); });
+  $('#c-colors').addEventListener('click', (e) => { const b = e.target.closest('[data-color]'); if (!b) return; draft.carColor = b.dataset.color; renderCarPickers(); updatePreview(); });
+  $('#c-body').addEventListener('click', (e) => { const b = e.target.closest('[data-body]'); if (!b) return; draft.carBody = b.dataset.body; renderCarPickers(); updatePreview(); });
+  $('#c-model').addEventListener('input', () => { renderCarPickers(); updatePreview(); });
+  $('#c-cancel').addEventListener('click', () => $('#car-dialog').close());
+  $('#car-dialog').addEventListener('close', () => { previewView?.destroy(); previewView = null; });
+  $('#car-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const s = state.settings;
+    s.carName = $('#c-name').value.trim();
+    s.car = $('#c-model').value.trim();
+    s.plate = $('#c-plate').value.trim().toUpperCase();
+    s.carColor = draft.carColor; s.carBody = draft.carBody;
+    save();
+    $('#car-dialog').close();
+    if (!editingId) { F('car').value = s.car; F('plate').value = s.plate; }
+    renderCarRow(); renderSummary();
+    toast(s.carName ? tr('{x} staat klaar ✓', { x: s.carName }) : tr('Opgeslagen'));
+  });
+
   // Tik of wijs een kolom aan: de waarde verschijnt rechtsboven in de grafiek
   function showColumn(e) {
     const col = e.target.closest('.col'); if (!col) return;
@@ -964,7 +1186,8 @@
     const s = state.settings;
     $('#s-url').value = s.scriptUrl; $('#s-token').value = s.token;
     $('#s-rate').value = String(s.rate).replace('.', ',');
-    $('#s-type').value = s.defaultType; $('#s-car').value = s.car; $('#s-plate').value = s.plate; $('#s-driver').value = s.driver;
+    $('#s-type').value = s.defaultType; $('#s-driver').value = s.driver;
+    renderCarRow();
     $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
     $('#s-odo').value = fmtOdo(latestOdo());
     $('#s-priv').value = privAllowance();
@@ -994,7 +1217,7 @@
   $('#s-save-defaults').addEventListener('click', () => {
     const s = state.settings;
     s.rate = parseDec($('#s-rate').value) ?? s.rate;
-    s.defaultType = $('#s-type').value; s.car = $('#s-car').value.trim(); s.plate = $('#s-plate').value.trim();
+    s.defaultType = $('#s-type').value;
     s.driver = $('#s-driver').value.trim();
     const odo = parseInt0($('#s-odo').value);
     if (odo) state.lastOdo = odo;
@@ -1225,7 +1448,9 @@
     I18N.setLang(state.settings.uiLang);
     I18N.apply();
     const en = I18N.lang === 'en';
-    $('#lang-btn').innerHTML = en ? 'NL <b>EN</b>' : '<b>NL</b> EN';
+    $('#lang-btn').textContent = en ? 'EN' : 'NL';
+    $$('#lang-seg button').forEach((b) => b.classList.toggle('on', b.dataset.lang === I18N.lang));
+    applyTheme();
     const active = $('.screen.active');
     $('#screen-title').textContent = tr(active.dataset.title);
     $('#save-btn').textContent = tr(editingId ? 'Wijziging opslaan' : 'Rit opslaan');
@@ -1238,6 +1463,39 @@
     state.settings.uiLang = I18N.lang === 'en' ? 'nl' : 'en';
     save(); applyLang();
   });
+  $('#lang-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lang]'); if (!b) return;
+    state.settings.uiLang = b.dataset.lang; save(); applyLang();
+  });
+
+  /* ---------- licht / donker ---------- */
+  const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const effectiveTheme = () => {
+    const t = state.settings.theme || 'system';
+    return t === 'system' ? (darkQuery.matches ? 'dark' : 'light') : t;
+  };
+  function applyTheme() {
+    const t = state.settings.theme || 'system';
+    if (t === 'system') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
+    try { localStorage.setItem('ritlog.theme', t); } catch { /* privémodus */ }
+    const dark = effectiveTheme() === 'dark';
+    const btn = $('#theme-btn');
+    btn.innerHTML = dark ? ICON.sun : ICON.moon;
+    btn.setAttribute('aria-label', tr(dark ? 'Licht thema' : 'Donker thema'));
+    $$('#theme-seg button').forEach((b) => b.classList.toggle('on', b.dataset.theme === t));
+    // Kleur van de iPhone-statusbalk (vaste waarden: de achtergrond animeert nog bij het wisselen)
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0e0e0d' : '#f2f1ee');
+  }
+  $('#theme-btn').addEventListener('click', () => {
+    state.settings.theme = effectiveTheme() === 'dark' ? 'light' : 'dark';
+    save(); applyTheme();
+  });
+  $('#theme-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-theme]'); if (!b) return;
+    state.settings.theme = b.dataset.theme; save(); applyTheme();
+  });
+  darkQuery.addEventListener?.('change', applyTheme);
 
   /* ---------- start ---------- */
   if (/setup=|connect=/.test(location.hash)) {
