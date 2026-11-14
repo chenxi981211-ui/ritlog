@@ -474,3 +474,5 @@ body.auth-open { overflow: hidden; }
 .auth-error { color: var(--danger); font-size: 14px; min-height: 20px; margin: 12px 0 0; }
 .danger-row strong { color: var(--danger); }
 .auth-screen .btn.ghost { background: var(--surface); box-shadow: var(--shadow); }
+.google-btn { background: #fff; color: #1f1f1f; box-shadow: inset 0 0 0 1px #dadce0; }
+.auth-note { text-align: center; margin-top: 4px; }

@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-14.3';
+  const APP_VERSION = '2026-11-14.4';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1528,7 +1528,7 @@
   // Lokaal blijft de bron voor de app (werkt offline). Gewijzigde ritten krijgen cloudDirty en worden
   // kort na opslaan geüpload; daarna halen we op wat andere apparaten hebben veranderd.
   const SB = window.supabase && CFG.supabaseUrl
-    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'ritlog.auth' } })
+    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, flowType: 'pkce', detectSessionInUrl: !NATIVE, storageKey: 'ritlog.auth' } })
     : null;
   let session = null, cloudBusy = false, cloudTimer = 0, applyingCloud = false;
   state.cloud ||= {};
@@ -1659,67 +1659,69 @@
     cloudSync();
   }
 
-  /* ---------- Inlogscherm ---------- */
+  /* ---------- Inlogscherm: Apple en Google (geen e-mail nodig) ---------- */
+  // App: Apple via het native venster, Google via een veilig browservenster dat terugkeert via
+  // io.github.chenxi981211.ritlog://login-callback. Website: doorsturen naar Apple/Google en terug.
+  const APP_RETURN = `${CFG.appleClientId}://login-callback`;
+  const WEB_RETURN = location.origin + location.pathname;
   const authEl = $('#auth-screen');
-  function showAuth(step = 'start') {
+  function showAuth() {
     authEl.classList.remove('hidden');
     document.body.classList.add('auth-open');
-    authEl.querySelectorAll('[data-step]').forEach((el) => el.classList.toggle('hidden', el.dataset.step !== step));
-    $('#auth-apple').classList.toggle('hidden', !NATIVE || !Plugins.SignInWithApple);
     $('#auth-error').textContent = '';
-    if (step === 'email') setTimeout(() => $('#auth-email').focus(), 50);
-    if (step === 'code') setTimeout(() => $('#auth-code').focus(), 50);
   }
   function hideAuth() { authEl.classList.add('hidden'); document.body.classList.remove('auth-open'); }
-  const authError = (err) => { $('#auth-error').textContent = tr(friendlyAuthError(err)); };
   function friendlyAuthError(err) {
     const m = String(err?.message || err || '');
-    if (/rate limit|too many/i.test(m)) return 'Te veel pogingen. Wacht even en probeer het opnieuw.';
-    if (/invalid|expired/i.test(m)) return 'Die code klopt niet of is verlopen. Vraag een nieuwe aan.';
+    if (/cancel|1001|closed/i.test(m)) return '';
+    if (/not enabled|unsupported provider/i.test(m)) return 'Deze manier van inloggen is nog niet ingesteld.';
     if (/fetch|network/i.test(m)) return 'Geen verbinding. Controleer je internet.';
-    if (/cancel|1001/i.test(m)) return '';
     return m;
   }
+  const authError = (err) => { $('#auth-error').textContent = tr(friendlyAuthError(err)); };
   async function sha256Hex(text) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, '0')).join('');
   }
+  async function signInWith(provider) {
+    if (NATIVE && provider === 'apple' && Plugins.SignInWithApple) {
+      const raw = crypto.randomUUID() + crypto.randomUUID();
+      const res = await Plugins.SignInWithApple.authorize({
+        clientId: CFG.appleClientId, redirectURI: `${CFG.supabaseUrl}/auth/v1/callback`, scopes: 'email name', state: uid(), nonce: await sha256Hex(raw),
+      });
+      const { error } = await SB.auth.signInWithIdToken({ provider: 'apple', token: res.response.identityToken, nonce: raw });
+      if (error) throw error;
+      return;
+    }
+    if (NATIVE) {
+      // Google in de app: inlogpagina in een veilig browservenster, daarna terug naar de app
+      const { data, error } = await SB.auth.signInWithOAuth({ provider, options: { redirectTo: APP_RETURN, skipBrowserRedirect: true } });
+      if (error) throw error;
+      await Plugins.Browser.open({ url: data.url, presentationStyle: 'popover' });
+      return;
+    }
+    const { error } = await SB.auth.signInWithOAuth({ provider, options: { redirectTo: WEB_RETURN } });
+    if (error) throw error;
+  }
+  // Terugkeer in de app na Google: code inwisselen voor een sessie
+  Plugins.App?.addListener?.('appUrlOpen', async ({ url }) => {
+    if (!url || !url.startsWith(APP_RETURN)) return;
+    Plugins.Browser?.close().catch(() => {});
+    const q = new URL(url.replace('#', '?')).searchParams;
+    const code = q.get('code');
+    if (code) {
+      const { error } = await SB.auth.exchangeCodeForSession(code);
+      if (error) authError(error);
+    } else if (q.get('error_description')) authError(q.get('error_description'));
+  });
   authEl.addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.id === 'auth-to-email') showAuth('email');
-    if (b.id === 'auth-back') showAuth('start');
-    if (b.id === 'auth-skip') { state.settings.skipAccount = true; save(); hideAuth(); }
-    if (b.id === 'auth-apple') {
-      try {
-        const raw = crypto.randomUUID() + crypto.randomUUID();
-        const res = await Plugins.SignInWithApple.authorize({
-          clientId: CFG.appleClientId, redirectURI: `${CFG.supabaseUrl}/auth/v1/callback`, scopes: 'email name', state: uid(), nonce: await sha256Hex(raw),
-        });
-        b.disabled = true;
-        const { error } = await SB.auth.signInWithIdToken({ provider: 'apple', token: res.response.identityToken, nonce: raw });
-        if (error) throw error;
-      } catch (err) { authError(err); } finally { b.disabled = false; }
-    }
-    if (b.id === 'auth-send') {
-      const email = $('#auth-email').value.trim();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $('#auth-error').textContent = tr('Vul een geldig e-mailadres in.'); return; }
-      b.disabled = true;
-      const { error } = await SB.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
-      b.disabled = false;
-      if (error) return authError(error);
-      $('#auth-sent-to').textContent = email;
-      showAuth('code');
-    }
-    if (b.id === 'auth-verify') {
-      const token = $('#auth-code').value.replace(/\D/g, '');
-      if (token.length < 6) { $('#auth-error').textContent = tr('Vul de code uit de e-mail in.'); return; }
-      b.disabled = true;
-      const { error } = await SB.auth.verifyOtp({ email: $('#auth-sent-to').textContent, token, type: 'email' });
-      b.disabled = false;
-      if (error) authError(error);
-    }
+    if (b.id === 'auth-skip') { state.settings.skipAccount = true; save(); hideAuth(); return; }
+    const provider = b.dataset.provider; if (!provider) return;
+    $('#auth-error').textContent = '';
+    b.disabled = true;
+    try { await signInWith(provider); } catch (err) { authError(err); } finally { b.disabled = false; }
   });
-  $('#auth-code').addEventListener('input', (e) => { if (e.target.value.replace(/\D/g, '').length >= 6) $('#auth-verify').click(); });
 
   /* ---------- Account in Instellingen ---------- */
   function renderAccount() {
@@ -1734,12 +1736,13 @@
       return;
     }
     const u = session.user;
-    const who = u.email || tr('Apple ID');
+    const via = { apple: 'Apple', google: 'Google' }[u.app_metadata?.provider] || '';
+    const who = u.email ? (/privaterelay\.appleid\.com$/i.test(u.email) ? tr('Apple ID (verborgen e-mail)') : u.email) : tr('Apple ID');
     const status = cloudBusy ? tr('Synchroniseren…') : state.cloud.error ? tr('Synchronisatie mislukt — tik om opnieuw te proberen')
       : state.cloud.lastSync ? tr('Gesynchroniseerd {t}', { t: new Date(state.cloud.lastSync).toLocaleTimeString(I18N.locale(), { hour: '2-digit', minute: '2-digit' }) }) : '';
     card.innerHTML = `<button type="button" class="list-row" id="acc-sync">
         <span class="l-ico">${ICON.user}</span>
-        <span class="grow"><strong>${esc(who)}</strong><small>${esc(status)}</small></span>
+        <span class="grow"><strong>${esc(who)}</strong><small>${esc([via && tr('via {p}', { p: via }), status].filter(Boolean).join(' · '))}</small></span>
         ${ICON_REFRESH}</button>
       <button type="button" class="list-row" id="acc-logout"><span class="l-ico">${ICON.logout}</span><span class="grow"><strong>${esc(tr('Uitloggen'))}</strong></span></button>
       <button type="button" class="list-row danger-row" id="acc-delete"><span class="l-ico">${ICON.trash}</span><span class="grow"><strong>${esc(tr('Account verwijderen'))}</strong><small>${esc(tr('Wist je account en alle ritten in de cloud'))}</small></span></button>`;
@@ -1752,7 +1755,7 @@
   }
   $('#account-card').addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.id === 'acc-login') { state.settings.skipAccount = false; showAuth('start'); }
+    if (b.id === 'acc-login') { state.settings.skipAccount = false; showAuth(); }
     if (b.id === 'acc-sync') cloudSync();
     if (b.id === 'acc-logout') {
       if (!confirm(tr('Uitloggen? Je ritten blijven in je account en verdwijnen van dit apparaat.'))) return;
@@ -1778,7 +1781,7 @@
       else if (event === 'SIGNED_OUT') { session = null; renderAccount(); }
     });
     if (data.session) await onSignedIn(data.session);
-    else if (!state.settings.skipAccount) showAuth('start');
+    else if (!state.settings.skipAccount) showAuth();
     renderAccount();
   }
 
