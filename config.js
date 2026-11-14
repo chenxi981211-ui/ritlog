@@ -13,4 +13,10 @@ window.RITLOG_CONFIG = {
   lastOdo: null,
   places: [],
   knownRoutes: [],
+
+  // Accounts en synchronisatie (Supabase). De publishable key is bedoeld om openbaar te zijn:
+  // de database laat iedereen alleen zijn eigen gegevens zien (row level security).
+  supabaseUrl: 'https://eziidgowmhggffqcdncj.supabase.co',
+  supabaseKey: 'sb_publishable_QaZwUKZFjUoBLpZb9T3n-Q_eJAulC_0',
+  appleClientId: 'io.github.chenxi981211.ritlog',
 };

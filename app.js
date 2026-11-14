@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-14.2';
+  const APP_VERSION = '2026-11-14.3';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -36,6 +36,10 @@
     grip: svg('<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>'),
     minus: svg('<path d="M6 12h12"/>'),
     plus: svg('<path d="M12 6v12M6 12h12"/>'),
+    user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+    logout: svg('<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10"/>'),
+    trash: svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
+    chev: '<svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
   };
   const ICON_REFRESH = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>';
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -119,7 +123,10 @@
   }
   let state;
   try { state = JSON.parse(localStorage.getItem(STORE_KEY)) || defaultState(); } catch { state = defaultState(); }
-  const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { console.warn(e); } };
+  const save = () => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { console.warn(e); }
+    window.dispatchEvent(new Event('ritlog:saved')); // account-synchronisatie luistert hiernaar
+  };
 
   const liveTrips = () => state.trips.filter((t) => t.sync !== 'delete');
   const sortKey = (t) => t.date + String(t.tripNo || 0).padStart(3, '0');
@@ -385,13 +392,13 @@
     if (editingId) {
       const t = state.trips.find((x) => x.id === editingId);
       if (t) {
-        Object.assign(t, data, { modified: stamp });
+        Object.assign(t, data, { modified: stamp, cloudDirty: true });
         if (t.sync === 'synced' || t.sync === 'error-update') t.sync = 'update';
         else if (t.sync === 'local' && state.settings.scriptUrl) t.sync = 'add';
       }
       toast(tr('Rit bijgewerkt'));
     } else {
-      state.trips.push({ id: uid(), ...data, created: stamp, modified: stamp, sync: state.settings.scriptUrl ? 'add' : 'local' });
+      state.trips.push({ id: uid(), ...data, created: stamp, modified: stamp, cloudDirty: true, sync: state.settings.scriptUrl ? 'add' : 'local' });
       toast(state.settings.scriptUrl ? tr('Rit opgeslagen ✓') : tr('Rit opgeslagen op deze telefoon'));
     }
     if (data.odoEnd && data.odoEnd > (state.lastOdo || 0)) state.lastOdo = data.odoEnd;
@@ -409,6 +416,7 @@
     if (!editingId || !confirm(state.settings.scriptUrl ? tr('Deze rit verwijderen (ook uit de Google Sheet)?') : tr('Deze rit verwijderen?'))) return;
     const t = state.trips.find((x) => x.id === editingId);
     if (t) {
+      (state.cloudDeletes ||= []).push(t.id);
       if (t.sync === 'synced' || t.sync === 'update' || t.sync === 'error-update') { t.sync = 'delete'; t.modified = new Date().toISOString(); }
       else state.trips = state.trips.filter((x) => x.id !== editingId);
     }
@@ -569,8 +577,8 @@
     for (const t of queue) {
       const op = t.sync.replace('error-', '');
       try {
-        if (op === 'add') { const r = await api({ action: 'add', trip: tripPayload(t) }); t.orig = r.row?.orig; t.sync = 'synced'; }
-        else if (op === 'update') { const r = await api({ action: 'update', orig: t.orig, trip: tripPayload(t) }); t.orig = r.row?.orig || t.orig; t.sync = 'synced'; }
+        if (op === 'add') { const r = await api({ action: 'add', trip: tripPayload(t) }); t.orig = r.row?.orig; t.sync = 'synced'; t.cloudDirty = true; }
+        else if (op === 'update') { const r = await api({ action: 'update', orig: t.orig, trip: tripPayload(t) }); t.orig = r.row?.orig || t.orig; t.sync = 'synced'; t.cloudDirty = true; }
         else if (op === 'delete') { await api({ action: 'delete', orig: t.orig }); state.trips = state.trips.filter((x) => x !== t); }
         delete t.error; ok++;
       } catch (err) {
@@ -608,10 +616,16 @@
       const feeHead = (res.headers || []).find((h) => /^vergoeding/i.test(h));
       const rateM = feeHead && feeHead.match(/€\s*([\d.,]+)\s*\/\s*km/i);
       if (rateM && parseDec(rateM[1])) state.settings.rate = parseDec(rateM[1]);
+      // Ritten uit de cloud die nog niet in deze Sheet staan, gaan er alsnog heen
+      state.trips.forEach((t) => { if (t.sync === 'synced' && !t.orig) t.sync = 'add'; });
       const pending = state.trips.filter((t) => t.sync !== 'synced' && t.sync !== 'local');
       const pendingIds = new Set(pending.map((t) => t.id));
       const fromSheet = res.rows.map(rowToTrip).filter((t) => t.date && !pendingIds.has(t.id));
       const locals = state.trips.filter((t) => t.sync === 'local');
+      // Wat in de Sheet nieuw of anders is gaat ook naar je account; wat eruit is gehaald, ook uit je account
+      const before = new Map(state.trips.filter((t) => t.sync === 'synced').map((t) => [t.id, t]));
+      fromSheet.forEach((t) => { const old = before.get(t.id); if (!old || rideSig(old) !== rideSig(t)) t.cloudDirty = true; else t.cloudDirty = !!old.cloudDirty; before.delete(t.id); });
+      before.forEach((t) => { if (t.orig) (state.cloudDeletes ||= []).push(t.id); });
       state.trips = [...fromSheet, ...pending, ...locals];
       // Afstanden leren van oudste naar nieuwste
       [...fromSheet].reverse().forEach((t) => learnRoute(t.from, t.to, t.km, null));
@@ -982,7 +996,7 @@
     const rects = items.map((i) => i.getBoundingClientRect());
     const from = items.indexOf(li);
     drag = { li, items, rects, from, to: from, y0: e.clientY, step: rects[from].height + 8 };
-    h.setPointerCapture(e.pointerId);
+    try { h.setPointerCapture(e.pointerId); } catch { /* pointer al losgelaten */ }
     li.classList.add('dragging');
     items.forEach((i) => { if (i !== li) i.classList.add('shift'); });
   });
@@ -1199,7 +1213,7 @@
     $('#s-url').value = s.scriptUrl; $('#s-token').value = s.token;
     $('#s-rate').value = String(s.rate).replace('.', ',');
     $('#s-type').value = s.defaultType; $('#s-driver').value = s.driver;
-    renderCarRow();
+    renderCarRow(); renderAccount();
     $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
     $('#s-odo').value = fmtOdo(latestOdo());
     $('#s-priv').value = privAllowance();
@@ -1510,6 +1524,264 @@
   });
   darkQuery.addEventListener?.('change', applyTheme);
 
+  /* ---------- Account en cloud-synchronisatie (Supabase) ---------- */
+  // Lokaal blijft de bron voor de app (werkt offline). Gewijzigde ritten krijgen cloudDirty en worden
+  // kort na opslaan geüpload; daarna halen we op wat andere apparaten hebben veranderd.
+  const SB = window.supabase && CFG.supabaseUrl
+    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'ritlog.auth' } })
+    : null;
+  let session = null, cloudBusy = false, cloudTimer = 0, applyingCloud = false;
+  state.cloud ||= {};
+  const num = (v) => (v == null || v === '' ? null : Number(v));
+  function rideSig(t) {
+    return JSON.stringify([t.desc, t.date, t.tripNo, t.km, t.detourBiz, t.detourPriv, t.odoStart, t.odoEnd, t.fee, t.from, t.to, t.type]);
+  }
+  const rideRow = (t) => ({
+    client_id: t.id, date: t.date || null, trip_no: t.tripNo ?? null, description: t.desc || '', km: t.km ?? null,
+    detour_biz: t.detourBiz ?? null, detour_priv: t.detourPriv ?? null, odo_start: t.odoStart ?? null, odo_end: t.odoEnd ?? null,
+    fee: t.fee ?? null, from_addr: t.from || '', to_addr: t.to || '', type: t.type || '', car: t.car || '', plate: t.plate || '',
+    driver: t.driver || '', sheet_orig: t.orig || null, deleted: false,
+  });
+  function mergeRide(r) {
+    const i = state.trips.findIndex((t) => t.id === r.client_id);
+    const local = i >= 0 ? state.trips[i] : null;
+    if (local?.cloudDirty) return; // eigen wijziging wint; die gaat de volgende keer omhoog
+    if (r.deleted) { if (local) state.trips.splice(i, 1); return; }
+    const t = {
+      ...(local || {}), id: r.client_id, date: r.date, tripNo: r.trip_no, desc: r.description || '', km: num(r.km),
+      detourBiz: num(r.detour_biz), detourPriv: num(r.detour_priv), odoStart: num(r.odo_start), odoEnd: num(r.odo_end), fee: num(r.fee),
+      from: r.from_addr || '', to: r.to_addr || '', type: r.type || '', car: r.car || '', plate: r.plate || '', driver: r.driver || '',
+      orig: r.sheet_orig || local?.orig, cloudDirty: false,
+    };
+    // Nieuw op dit apparaat: staat hij al in de Sheet, dan 'synced'; anders sturen we hem erheen als die gekoppeld is
+    if (!local) t.sync = r.sheet_orig ? 'synced' : (state.settings.scriptUrl ? 'add' : 'local');
+    if (i >= 0) state.trips[i] = t; else state.trips.push(t);
+  }
+  // Instellingen die met je account meegaan (thema en taal blijven per apparaat)
+  const SYNC_KEYS = ['rate', 'car', 'plate', 'driver', 'defaultType', 'privAllowance', 'carName', 'carColor', 'carBody', 'dash', 'scriptUrl', 'token', 'sheetTab'];
+  const cloudSettings = () => ({
+    settings: Object.fromEntries(SYNC_KEYS.filter((k) => state.settings[k] !== undefined).map((k) => [k, state.settings[k]])),
+    places: state.places.map(({ id, name, address, aliases, role }) => ({ id, name, address, aliases, role })),
+    lastOdo: state.lastOdo ?? null,
+  });
+  function applyCloudSettings(s) {
+    SYNC_KEYS.forEach((k) => { if (s.settings && k in s.settings) state.settings[k] = s.settings[k]; });
+    if (Array.isArray(s.places)) state.places = s.places.map((p) => ({ aliases: [], role: '', ...p, id: p.id || uid() }));
+    if (s.lastOdo) state.lastOdo = Math.max(s.lastOdo, state.lastOdo || 0);
+  }
+  async function cloudSync() {
+    if (!SB || !session || cloudBusy || !navigator.onLine) return;
+    cloudBusy = true; renderAccount();
+    const uidNow = session.user.id;
+    try {
+      // 1. Instellingen: nieuwere versie van een ander apparaat overnemen, eigen wijziging uploaden
+      const { data: prof, error: pe } = await SB.from('profiles').select('settings, updated_at').eq('id', uidNow).maybeSingle();
+      if (pe) throw pe;
+      const mine = JSON.stringify(cloudSettings());
+      const localChanged = mine !== state.cloud.settingsHash;
+      if (prof && prof.updated_at !== state.cloud.settingsAt && !localChanged && prof.settings?.settings) {
+        applyingCloud = true;
+        applyCloudSettings(prof.settings);
+        state.cloud.settingsHash = JSON.stringify(cloudSettings());
+        state.cloud.settingsAt = prof.updated_at;
+        applyingCloud = false;
+      } else if (localChanged || !prof) {
+        const { data: up, error } = await SB.from('profiles').upsert({ id: uidNow, settings: cloudSettings() }).select('updated_at').single();
+        if (error) throw error;
+        state.cloud.settingsHash = mine; state.cloud.settingsAt = up.updated_at;
+      }
+      // 2. Gewijzigde ritten uploaden (ritten die nog naar de Sheet moeten, wachten daarop)
+      const dirty = state.trips.filter((t) => t.cloudDirty && t.sync !== 'delete' && !(state.settings.scriptUrl && t.sync === 'add'));
+      for (let i = 0; i < dirty.length; i += 500) {
+        const chunk = dirty.slice(i, i + 500);
+        const { error } = await SB.from('rides').upsert(chunk.map(rideRow), { onConflict: 'user_id,client_id' });
+        if (error) throw error;
+        chunk.forEach((t) => { t.cloudDirty = false; });
+      }
+      // 3. Verwijderde ritten als verwijderd markeren, zodat andere apparaten ze ook weghalen
+      const dels = [...new Set([...(state.cloudDeletes || []), ...state.trips.filter((t) => t.sync === 'delete').map((t) => t.id)])];
+      if (dels.length) {
+        const { error } = await SB.from('rides').upsert(dels.map((id) => ({ client_id: id, deleted: true })), { onConflict: 'user_id,client_id' });
+        if (error) throw error;
+        state.cloudDeletes = [];
+      }
+      // 4. Ophalen wat sinds de vorige keer is veranderd
+      let from = 0, newest = state.cloud.lastPull || null, got = 0;
+      for (;;) {
+        let q = SB.from('rides').select('*').order('updated_at', { ascending: true }).range(from, from + 999);
+        if (state.cloud.lastPull) q = q.gt('updated_at', state.cloud.lastPull);
+        const { data, error } = await q;
+        if (error) throw error;
+        applyingCloud = true;
+        data.forEach((r) => { mergeRide(r); newest = r.updated_at; });
+        applyingCloud = false;
+        got += data.length;
+        if (data.length < 1000) break;
+        from += 1000;
+      }
+      state.cloud.lastPull = newest;
+      state.cloud.lastSync = new Date().toISOString();
+      delete state.cloud.error;
+      applyingCloud = true; save(); applyingCloud = false;
+      if (got) { renderQuick(); const a = $('.screen.active').id; if (a === 'screen-trips') renderTrips(); if (a === 'screen-summary') renderSummary(); }
+      flush();
+    } catch (err) {
+      console.warn('cloud sync', err);
+      state.cloud.error = err.message || String(err);
+    } finally {
+      applyingCloud = false; cloudBusy = false; renderAccount();
+    }
+  }
+  const scheduleCloud = (ms = 1500) => { clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudSync, ms); };
+  window.addEventListener('ritlog:saved', () => { if (session && !applyingCloud) scheduleCloud(); });
+  window.addEventListener('online', () => scheduleCloud(500));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleCloud(800); });
+
+  // Bij inloggen: wisselt de gebruiker, dan beginnen we schoon; anders gaat alles lokaals mee naar het account
+  async function onSignedIn(s) {
+    session = s;
+    if (state.cloud.userId && state.cloud.userId !== s.user.id) {
+      const keep = { theme: state.settings.theme, uiLang: state.settings.uiLang };
+      Object.assign(state, defaultState());
+      Object.assign(state.settings, keep);
+      state.cloud = {};
+    }
+    if (state.cloud.userId !== s.user.id) {
+      state.cloud = { userId: s.user.id };
+      state.trips.forEach((t) => { if (t.sync !== 'delete') t.cloudDirty = true; });
+      // Bestaat het account al met instellingen, dan winnen die; anders uploaden we de lokale
+      const { data: prof } = await SB.from('profiles').select('settings, updated_at').eq('id', s.user.id).maybeSingle();
+      if (prof?.settings?.settings) { applyCloudSettings(prof.settings); state.cloud.settingsAt = prof.updated_at; state.cloud.settingsHash = JSON.stringify(cloudSettings()); }
+      applyingCloud = true; save(); applyingCloud = false;
+    }
+    hideAuth();
+    resetForm(); applyLang();
+    cloudSync();
+  }
+
+  /* ---------- Inlogscherm ---------- */
+  const authEl = $('#auth-screen');
+  function showAuth(step = 'start') {
+    authEl.classList.remove('hidden');
+    document.body.classList.add('auth-open');
+    authEl.querySelectorAll('[data-step]').forEach((el) => el.classList.toggle('hidden', el.dataset.step !== step));
+    $('#auth-apple').classList.toggle('hidden', !NATIVE || !Plugins.SignInWithApple);
+    $('#auth-error').textContent = '';
+    if (step === 'email') setTimeout(() => $('#auth-email').focus(), 50);
+    if (step === 'code') setTimeout(() => $('#auth-code').focus(), 50);
+  }
+  function hideAuth() { authEl.classList.add('hidden'); document.body.classList.remove('auth-open'); }
+  const authError = (err) => { $('#auth-error').textContent = tr(friendlyAuthError(err)); };
+  function friendlyAuthError(err) {
+    const m = String(err?.message || err || '');
+    if (/rate limit|too many/i.test(m)) return 'Te veel pogingen. Wacht even en probeer het opnieuw.';
+    if (/invalid|expired/i.test(m)) return 'Die code klopt niet of is verlopen. Vraag een nieuwe aan.';
+    if (/fetch|network/i.test(m)) return 'Geen verbinding. Controleer je internet.';
+    if (/cancel|1001/i.test(m)) return '';
+    return m;
+  }
+  async function sha256Hex(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  authEl.addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'auth-to-email') showAuth('email');
+    if (b.id === 'auth-back') showAuth('start');
+    if (b.id === 'auth-skip') { state.settings.skipAccount = true; save(); hideAuth(); }
+    if (b.id === 'auth-apple') {
+      try {
+        const raw = crypto.randomUUID() + crypto.randomUUID();
+        const res = await Plugins.SignInWithApple.authorize({
+          clientId: CFG.appleClientId, redirectURI: `${CFG.supabaseUrl}/auth/v1/callback`, scopes: 'email name', state: uid(), nonce: await sha256Hex(raw),
+        });
+        b.disabled = true;
+        const { error } = await SB.auth.signInWithIdToken({ provider: 'apple', token: res.response.identityToken, nonce: raw });
+        if (error) throw error;
+      } catch (err) { authError(err); } finally { b.disabled = false; }
+    }
+    if (b.id === 'auth-send') {
+      const email = $('#auth-email').value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $('#auth-error').textContent = tr('Vul een geldig e-mailadres in.'); return; }
+      b.disabled = true;
+      const { error } = await SB.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+      b.disabled = false;
+      if (error) return authError(error);
+      $('#auth-sent-to').textContent = email;
+      showAuth('code');
+    }
+    if (b.id === 'auth-verify') {
+      const token = $('#auth-code').value.replace(/\D/g, '');
+      if (token.length < 6) { $('#auth-error').textContent = tr('Vul de code uit de e-mail in.'); return; }
+      b.disabled = true;
+      const { error } = await SB.auth.verifyOtp({ email: $('#auth-sent-to').textContent, token, type: 'email' });
+      b.disabled = false;
+      if (error) authError(error);
+    }
+  });
+  $('#auth-code').addEventListener('input', (e) => { if (e.target.value.replace(/\D/g, '').length >= 6) $('#auth-verify').click(); });
+
+  /* ---------- Account in Instellingen ---------- */
+  function renderAccount() {
+    const card = $('#account-card');
+    if (!card) return;
+    if (!SB) { card.closest('.account-wrap').classList.add('hidden'); return; }
+    if (!session) {
+      card.innerHTML = `<button type="button" class="list-row" id="acc-login">
+        <span class="l-ico">${ICON.user}</span>
+        <span class="grow"><strong>${esc(tr('Inloggen of account maken'))}</strong><small>${esc(tr('Je ritten veilig bewaard en op al je apparaten'))}</small></span>
+        ${ICON.chev}</button>`;
+      return;
+    }
+    const u = session.user;
+    const who = u.email || tr('Apple ID');
+    const status = cloudBusy ? tr('Synchroniseren…') : state.cloud.error ? tr('Synchronisatie mislukt — tik om opnieuw te proberen')
+      : state.cloud.lastSync ? tr('Gesynchroniseerd {t}', { t: new Date(state.cloud.lastSync).toLocaleTimeString(I18N.locale(), { hour: '2-digit', minute: '2-digit' }) }) : '';
+    card.innerHTML = `<button type="button" class="list-row" id="acc-sync">
+        <span class="l-ico">${ICON.user}</span>
+        <span class="grow"><strong>${esc(who)}</strong><small>${esc(status)}</small></span>
+        ${ICON_REFRESH}</button>
+      <button type="button" class="list-row" id="acc-logout"><span class="l-ico">${ICON.logout}</span><span class="grow"><strong>${esc(tr('Uitloggen'))}</strong></span></button>
+      <button type="button" class="list-row danger-row" id="acc-delete"><span class="l-ico">${ICON.trash}</span><span class="grow"><strong>${esc(tr('Account verwijderen'))}</strong><small>${esc(tr('Wist je account en alle ritten in de cloud'))}</small></span></button>`;
+  }
+  function wipeLocal() {
+    const keep = { theme: state.settings.theme, uiLang: state.settings.uiLang, skipAccount: true };
+    Object.assign(state, defaultState(), { cloud: {} });
+    Object.assign(state.settings, keep);
+    save(); resetForm(); applyLang(); renderSettings();
+  }
+  $('#account-card').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'acc-login') { state.settings.skipAccount = false; showAuth('start'); }
+    if (b.id === 'acc-sync') cloudSync();
+    if (b.id === 'acc-logout') {
+      if (!confirm(tr('Uitloggen? Je ritten blijven in je account en verdwijnen van dit apparaat.'))) return;
+      await cloudSync();
+      await SB.auth.signOut();
+      session = null; wipeLocal(); toast(tr('Uitgelogd'));
+    }
+    if (b.id === 'acc-delete') {
+      if (!confirm(tr('Je account en al je ritten in de cloud definitief verwijderen? Dit kan niet ongedaan worden gemaakt. Je Google Sheet blijft bestaan.'))) return;
+      const { error } = await SB.rpc('delete_my_account');
+      if (error) return toast(tr('Verwijderen mislukt: {e}', { e: error.message }), 4000);
+      await SB.auth.signOut().catch(() => {});
+      session = null; wipeLocal(); toast(tr('Je account is verwijderd'));
+    }
+  });
+
+  async function startAccounts() {
+    if (!SB) return;
+    const { data } = await SB.auth.getSession();
+    SB.auth.onAuthStateChange((event, s) => {
+      if (event === 'SIGNED_IN' && s && s.user.id !== session?.user.id) onSignedIn(s);
+      else if (event === 'TOKEN_REFRESHED' && s) session = s;
+      else if (event === 'SIGNED_OUT') { session = null; renderAccount(); }
+    });
+    if (data.session) await onSignedIn(data.session);
+    else if (!state.settings.skipAccount) showAuth('start');
+    renderAccount();
+  }
+
   /* ---------- start ---------- */
   if (/setup=|connect=/.test(location.hash)) {
     const h = location.hash;
@@ -1524,6 +1796,7 @@
   resetForm();
   applyLang();
   flush().then(() => pull(true));
+  startAccounts();
 
   if (!NATIVE && 'serviceWorker' in navigator && location.protocol !== 'file:') {
     // Nieuwe versie gepubliceerd → automatisch één keer herladen

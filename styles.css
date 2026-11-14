@@ -451,3 +451,26 @@ dialog label { margin-top: 12px; }
 
 /* In de iOS-app: geen tekstselectie of lang-drukmenu op knoppen */
 .native button, .native .tabbar, .native .topbar, .native .stat, .native .trip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* ---------- Inlogscherm ---------- */
+.auth-screen {
+  position: fixed; inset: 0; z-index: 50; overflow-y: auto;
+  background: radial-gradient(120% 60% at 50% 0%, var(--primary-soft), var(--bg) 60%);
+  display: grid; place-items: center;
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+}
+body.auth-open { overflow: hidden; }
+.auth-inner { width: min(100%, 380px); text-align: center; }
+.auth-logo { width: 96px; height: 96px; border-radius: 24px; box-shadow: var(--shadow-float); }
+.auth-screen h1 { font-size: 36px; font-weight: 800; letter-spacing: -.04em; margin: 18px 0 6px; }
+.auth-tag { color: var(--muted); font-size: 16px; line-height: 1.45; margin: 0 auto 28px; max-width: 320px; }
+.auth-screen .stack { text-align: left; }
+.auth-screen .btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.apple-btn { background: #000; color: #fff; }
+:root[data-theme="dark"] .apple-btn { background: #fff; color: #000; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .apple-btn { background: #fff; color: #000; } }
+.auth-skip { display: block; width: 100%; text-align: center; padding: 12px; color: var(--muted); font-weight: 600; }
+.code-input { text-align: center; font-size: 26px; letter-spacing: .4em; font-weight: 700; }
+.auth-error { color: var(--danger); font-size: 14px; min-height: 20px; margin: 12px 0 0; }
+.danger-row strong { color: var(--danger); }
+.auth-screen .btn.ghost { background: var(--surface); box-shadow: var(--shadow); }
