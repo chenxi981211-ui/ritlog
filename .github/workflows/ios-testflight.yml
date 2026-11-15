@@ -46,6 +46,32 @@ jobs:
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
 
+      - name: API-sleutel controleren (zonder waarden te tonen)
+        env:
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          echo "Key ID: ${#KEY_ID} tekens, vorm ok: $([[ "$KEY_ID" =~ ^[A-Z0-9]{10}$ ]] && echo ja || echo NEE)"
+          echo "Issuer ID: vorm ok (UUID): $([[ "$ISSUER_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] && echo ja || echo NEE)"
+          echo "Team ID: vorm ok: $([[ "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] && echo ja || echo NEE)"
+          echo "Sleutelbestand: $(head -1 "$RUNNER_TEMP/keys/AuthKey.p8" | grep -q 'BEGIN PRIVATE KEY' && echo 'begint goed' || echo 'NIET het juiste formaat')"
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography >/dev/null 2>&1 || python3 -m pip install --quiet pyjwt cryptography >/dev/null
+          python3 - <<'PY'
+          import os, time, jwt, urllib.request, urllib.error
+          key = open(os.path.join(os.environ['RUNNER_TEMP'], 'keys', 'AuthKey.p8')).read()
+          now = int(time.time())
+          token = jwt.encode({'iss': os.environ['ISSUER_ID'], 'iat': now, 'exp': now + 600, 'aud': 'appstoreconnect-v1'},
+                             key, algorithm='ES256', headers={'kid': os.environ['KEY_ID'], 'typ': 'JWT'})
+          req = urllib.request.Request('https://api.appstoreconnect.apple.com/v1/apps?limit=1', headers={'Authorization': 'Bearer ' + token})
+          try:
+              with urllib.request.urlopen(req) as r:
+                  print('App Store Connect API: OK (', r.status, ') — sleutel, Key ID en Issuer ID passen bij elkaar')
+          except urllib.error.HTTPError as e:
+              print('App Store Connect API: FOUT', e.code, '— 401 = Key ID, Issuer ID en sleutelbestand passen niet bij elkaar; 403 = rol van de sleutel te laag')
+              raise SystemExit(1)
+          PY
+
       - name: Archief bouwen (automatisch ondertekenen)
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
