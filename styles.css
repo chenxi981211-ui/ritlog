@@ -14,15 +14,16 @@
   --text: #141413;
   --muted: #6e6d68;
   --line: #ebe9e4;
-  --primary: #1b5e40;
+  --primary: #0f9150;
   --primary-ink: #ffffff;
-  --primary-soft: #e3eee7;
+  --primary-soft: #dcf5e6;
   --accent-pink: #e85d8f;
   --warn: #a65b00;
   --warn-soft: #fbefdc;
   --danger: #c0352b;
   --ok: #1f8a4c;
   --viz-1: #2a78d6; --viz-2: #eb6834; --viz-3: #1baf7a; --viz-4: #eda100;
+  --stage: linear-gradient(180deg, #cfe2f6, #b9d3ef);
   --font-display: "Sora", "Inter", -apple-system, sans-serif;
   --radius: 22px;
   --radius-sm: 14px;
@@ -42,6 +43,7 @@
     --primary: #5cc58e;
     --primary-ink: #06180e;
     --primary-soft: #1d3327;
+    --stage: linear-gradient(180deg, #1d2a39, #17222f);
     --warn: #f2b25c;
     --warn-soft: #3a2c15;
     --danger: #f0776c;
@@ -63,6 +65,7 @@
   --primary: #5cc58e;
   --primary-ink: #06180e;
   --primary-soft: #1d3327;
+  --stage: linear-gradient(180deg, #1d2a39, #17222f);
   --warn: #f2b25c;
   --warn-soft: #3a2c15;
   --danger: #f0776c;
@@ -337,7 +340,7 @@ body:has(#screen-new.active) { padding-bottom: 0; }
 .car-card { padding: 0; overflow: hidden; }
 .car-stage {
   position: relative; height: 190px; cursor: grab; touch-action: pan-y;
-  background: radial-gradient(70% 55% at 50% 82%, var(--surface-2), transparent 72%);
+  background: var(--stage);
 }
 .car-stage:active { cursor: grabbing; }
 .car-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -457,7 +460,7 @@ dialog label { margin-top: 12px; }
 .car-card .car-info { padding: 2px 18px 16px; }
 .car-info .car-name, .car-info .car-meta { display: block; }
 #dash-dialog { padding-bottom: 0; }
-#dash-dialog .dialog-actions { position: sticky; bottom: 0; margin: 14px -22px 0; padding: 12px 22px calc(16px + env(safe-area-inset-bottom)); background: var(--surface); box-shadow: 0 -1px 0 var(--line); }
+#dash-dialog .dialog-actions { position: sticky; bottom: 0; margin: 12px -22px 0; padding: 12px 22px 14px; background: var(--surface); box-shadow: 0 -1px 0 var(--line); }
 
 /* In de iOS-app: geen tekstselectie of lang-drukmenu op knoppen */
 .native button, .native .tabbar, .native .topbar, .native .stat, .native .trip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -518,7 +521,7 @@ body.onb-open { overflow: hidden; }
 .onb-point .l-ico .ico { width: 20px; height: 20px; }
 .onb-point b { display: block; }
 .onb-point small { color: var(--muted); font-size: 14px; }
-.onb .car-stage { height: 200px; border-radius: var(--radius); background: radial-gradient(70% 55% at 50% 82%, var(--surface-2), var(--surface) 72%); box-shadow: var(--shadow); margin-bottom: 16px; }
+.onb .car-stage { height: 200px; border-radius: var(--radius); background: var(--stage); box-shadow: var(--shadow); margin-bottom: 16px; }
 .onb .card { margin-bottom: 12px; }
 .onb-route { display: flex; align-items: center; gap: 10px; background: var(--primary-soft); color: var(--primary); border-radius: 14px; padding: 12px 14px; font-weight: 600; margin-top: 4px; }
 .onb-route .ico { width: 20px; height: 20px; }
@@ -570,3 +573,45 @@ h2 { font-weight: 600; letter-spacing: -.015em; }
 /* Getallen in lijsten even breed, zodat kolommen netjes onder elkaar staan */
 .t-km, .routes-list b, .legend b, .chart-table td { font-variant-numeric: tabular-nums; }
 .demo-tag { font-size: 11px; font-weight: 700; color: var(--primary); background: var(--primary-soft); border-radius: 6px; padding: 1px 6px; margin-right: 2px; }
+
+/* Overzicht: kleine iconen bij tegels en kaarttitels */
+.stat .s-ico, .h-ico .s-ico { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); flex: none; }
+.stat .s-ico { margin-bottom: 10px; }
+.s-ico .ico { width: 17px; height: 17px; }
+.h-ico { display: flex; align-items: center; gap: 10px; }
+.stat.over .s-ico { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+
+/* Snelle ritten: geselecteerde tegel */
+.quick-btn { position: relative; transition: transform .12s ease, box-shadow .15s ease, background-color .15s ease; }
+.quick-btn .q-check { position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--primary); color: var(--primary-ink); opacity: 0; transform: scale(.6); transition: opacity .15s ease, transform .15s ease; }
+.quick-btn .q-check .ico { width: 15px; height: 15px; stroke-width: 2.6; }
+.quick-btn.sel { box-shadow: 0 0 0 2.5px var(--primary), var(--shadow); }
+.quick-btn.sel:not(.hero) { background: var(--primary-soft); }
+.quick-btn.sel .q-check { opacity: 1; transform: none; }
+.quick-btn.hero.sel { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--primary); }
+.quick-btn.hero .q-check { background: var(--primary-ink); color: var(--primary); }
+
+/* Koppelkaart wegklikken */
+.connect-card { position: relative; }
+.connect-card h2 { padding-right: 36px; }
+.card-close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.card-close .ico { width: 16px; height: 16px; }
+
+/* Vorm kiezen: chips met silhouet */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 600; padding: 7px 13px 7px 10px; border-radius: 999px; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+.chip small { color: var(--muted); font-weight: 500; font-size: 13px; }
+.chip .sil { width: 34px; height: 16px; fill: var(--muted); flex: none; }
+.chip .chip-ico { color: var(--primary); display: grid; }
+.chip .chip-ico .ico { width: 16px; height: 16px; }
+.chip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.chip.on .sil { fill: var(--primary); }
+.chip.on small { color: var(--primary); opacity: .8; }
+.chip:active { transform: scale(.97); }
+#car-dialog .car-card { border-radius: 20px; }
+#car-preview { height: 200px; }
+.chip .sil circle { stroke: var(--surface); stroke-width: 1.4; }
+.chip.on .sil circle { stroke: var(--primary-soft); }

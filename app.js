@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-15.4';
+  const APP_VERSION = '2026-11-16.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -39,6 +39,23 @@
     user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
     logout: svg('<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10"/>'),
     trash: svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7"/>'),
+    close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+    road: svg('<path d="M8 3L4 21M16 3l4 18M12 4v3M12 11v2.5M12 17.5V20"/>'),
+    euro: svg('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.6a4.2 4.2 0 1 0 0 6.8M7 10.8h6.5M7 13.4h6.5"/>'),
+    wallet: svg('<path d="M19 7V5.5A1.5 1.5 0 0 0 17.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h13a1 1 0 0 0 1-1v-3M4 6a2 2 0 0 0 2 2h13a1 1 0 0 1 1 1v3"/><path d="M15 12h6v4h-6a2 2 0 0 1 0-4z"/>'),
+    gauge: svg('<path d="M4.5 18a8.5 8.5 0 1 1 15 0"/><path d="M12 15l4-5"/><circle cx="12" cy="15" r="1.3"/>'),
+    ruler: svg('<path d="M3.5 16.5l13-13 4 4-13 13z"/><path d="M7.5 12.5l2 2M10.5 9.5l2 2M13.5 6.5l2 2"/>'),
+    calendar: svg('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+    repeat: svg('<path d="M17 3l3 3-3 3"/><path d="M4 12v-2a4 4 0 0 1 4-4h12M7 21l-3-3 3-3"/><path d="M20 12v2a4 4 0 0 1-4 4H4"/>'),
+    flame: svg('<path d="M12 3c.8 3.6 6 5.6 6 11a6 6 0 0 1-12 0c0-2.8 1.6-4.2 2-6.5 1.6 1 2.6 2.6 2.8 4.5C12 10 12.5 6.5 12 3z"/>'),
+    zap: svg('<path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/>'),
+    detour: svg('<path d="M5 21v-9a4 4 0 0 1 8 0v2a4 4 0 0 0 8 0V5"/><path d="M18 7.5l3-3 3 3" transform="translate(-1.5 0)"/>'),
+    trend: svg('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
+    bars: svg('<path d="M5 20V11M12 20V4M19 20v-6"/>'),
+    pie: svg('<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/>'),
+    route: svg('<circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><path d="M8.4 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.6"/>'),
+    sparkle: svg('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>'),
     chev: '<svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
   };
   const ICON_REFRESH = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>';
@@ -330,6 +347,7 @@
     $('#repeat-btn').classList.add('hidden');
     Object.entries(prefill).forEach(([k, v]) => { if (F(k) && v != null) F(k).value = v; });
     if (prefill.type) setType(prefill.type);
+    if (quickList.length) markQuick();
     autoTripNo();
     updateFee();
     if (F('from').value && F('to').value) updateDistance();
@@ -377,6 +395,7 @@
     };
   }
 
+  form.addEventListener('input', (e) => { if (e.target.name === 'from' || e.target.name === 'to') markQuick(); });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const data = readForm();
@@ -533,20 +552,33 @@
     if (last && list.length < 4) add(last.to, home?.address, placeName(last.to) + ' → ' + (home ? tr('Huis') : ''), tr('Terug'));
     return list.slice(0, 4);
   }
+  let quickList = [];
+  // Tegel die bij het huidige formulier hoort krijgt een geselecteerde staat
+  function markQuick() {
+    const from = norm(F('from').value), to = norm(F('to').value);
+    $$('#quick-routes [data-q]').forEach((b) => {
+      const r = quickList[+b.dataset.q];
+      const on = !!r && !editingId && !!from && norm(r.from) === from && norm(r.to || '') === to;
+      b.classList.toggle('sel', on); b.setAttribute('aria-pressed', on);
+    });
+  }
   function renderQuick() {
     const routes = quickRoutes();
+    quickList = routes;
     const next = nextTripNo(todayISO());
     $('#quick-routes').innerHTML = routes.map((r, i) => `
       <button type="button" class="quick-btn${i === 0 ? ' hero' : ''}" data-q="${i}">
-        <span class="q-ico">${{ home: ICON.home, work: ICON.work }[placeByAddress(r.to)?.role] || ICON.pin}</span>
+        <span class="q-ico">${{ home: ICON.home, work: ICON.work }[placeByAddress(r.to)?.role] || ICON.pin}</span><span class="q-check">${ICON.check}</span>
         ${i === 0 ? `<span class="tag">${tr('Voorstel · rit {n}', { n: next })}</span>` : r.tag ? `<span class="tag">${esc(r.tag)}</span>` : ''}
         <strong>${esc(r.label)}</strong>
         <small>${r.km ? fmtKm(r.km) + ' km' : tr('afstand berekenen')}</small>
       </button>`).join('');
+    markQuick();
     $('#quick-routes').onclick = (e) => {
       const b = e.target.closest('[data-q]'); if (!b) return;
       const r = routes[+b.dataset.q];
       resetForm({ from: r.from, to: r.to });
+      markQuick();
       $('#save-btn').focus({ preventScroll: true });
       $('.save-bar').scrollIntoView({ behavior: 'smooth', block: 'end' });
       toast(tr('Controleer en tik op “Rit opslaan”'));
@@ -764,10 +796,10 @@
     const thisMonth = monthKey(todayISO());
     const months = [...new Set([thisMonth, ...liveTrips().map((t) => monthKey(t.date))])].sort().reverse();
     const years = [...new Set(months.map((m) => m.slice(0, 4)))];
-    const cur = select.value || thisMonth;
+    const cur = select.value || thisMonth.slice(0, 4); // standaard het hele jaar
     select.innerHTML = years.map((y) => `<optgroup label="${y}"><option value="${y}">${esc(tr('Heel {y}', { y }))}</option>${
       months.filter((m) => m.startsWith(y)).map((m) => `<option value="${m}">${esc(monthLabel(m))}</option>`).join('')}</optgroup>`).join('');
-    select.value = months.includes(cur) || years.includes(cur) ? cur : thisMonth;
+    select.value = months.includes(cur) || years.includes(cur) ? cur : thisMonth.slice(0, 4);
   }
 
   const shortDate = (iso) => new Date(iso + 'T12:00').toLocaleDateString(I18N.locale(), { day: 'numeric', month: 'short' });
@@ -861,12 +893,12 @@
   }
 
   // Kolomgrafiek met één reeks: de hoogste kolom krijgt een label, tikken toont de rest
-  function columnChart(title, items) {
+  function columnChart(title, items, icon) {
     const max = Math.max(...items.map((i) => i.value));
     const read = (i) => `${fmtKm(i.value)} km · ${i.label}`;
     const peak = items.find((i) => i.value === max);
     return `<div class="card viz">
-      <div class="chart-head"><h2>${esc(title)}</h2><span class="chart-read">${esc(max ? read(peak) : '')}</span></div>
+      <div class="chart-head">${h2i(icon || ICON.bars, title)}<span class="chart-read">${esc(max ? read(peak) : '')}</span></div>
       <div class="cols">${items.map((i) => `<button type="button" class="col" data-read="${esc(read(i))}" aria-label="${esc(read(i))}">
         ${i === peak && max ? `<em>${fmtInt(i.value)}</em>` : ''}<i style="height:${max ? Math.max(i.value ? 2 : 0, (i.value / max) * 100) : 0}px"></i>
       </button>`).join('')}</div>
@@ -878,42 +910,44 @@
   function splitChart(parts, total) {
     const rows = [['commute', 'Woon-werk'], ['other', 'Overig zakelijk'], ['private', 'Privé'], ['detour', 'Omrijden']];
     const pct = (v) => (total ? fmtDec1((v / total) * 100) : fmtDec1(0)) + '%';
-    return `<div class="card viz"><h2>${esc(tr('Waar gaan de kilometers heen?'))}</h2>
+    return `<div class="card viz">${h2i(ICON.pie, tr('Waar gaan de kilometers heen?'))}
       <div class="split">${rows.filter(([k]) => parts[k] > 0).map(([k]) => `<span class="seg-${k}" style="flex:${parts[k]} 1 0"></span>`).join('')}</div>
       <div class="legend">${rows.map(([k, label]) => `<div><span class="swatch seg-${k}"></span><span class="grow">${esc(tr(label))}</span><span class="muted">${pct(parts[k])}</span><b>${fmtKm(parts[k])} km</b></div>`).join('')}</div>
     </div>`;
   }
   /* ---------- Overzicht als aanpasbare widgets ---------- */
   // kind: 'tile' = halve breedte (naast elkaar), 'card' = volle breedte, 'line' = regel tekst
-  const tile = (value, label, sub, cls = '') => `<div class="stat ${cls}"><b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
+  const tile = (icon, value, label, sub, cls = '') => `<div class="stat ${cls}"><span class="s-ico">${icon}</span><b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
+  const fmtBig = (n) => (Math.abs(n) >= 1000 ? fmtInt(n) : fmtKm(n));
+  const h2i = (icon, text) => `<h2 class="h-ico"><span class="s-ico">${icon}</span>${esc(text)}</h2>`;
   const WIDGETS = [
     { id: 'car', kind: 'card', name: 'Mijn auto', render: (c) => carCardHtml(c) },
-    { id: 'total', kind: 'tile', name: 'Totaal km', render: (c) => tile(`${fmtKm(c.km)} km`, tr('totaal'), tr('incl. omrijkilometers')) },
-    { id: 'fee', kind: 'tile', name: 'Vergoeding', render: (c) => tile(fmtEur(c.fee), tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })) },
-    { id: 'private', kind: 'tile', name: 'Privé-saldo', render: (c) => tile(`${fmtKm(c.privLeft)} km`, tr('privé-saldo {y}', { y: c.year }), tr('{u} van {a} km gebruikt', { u: fmtKm(c.privUsed), a: privAllowance() }), c.privLeft < 0 ? 'over' : '') },
-    { id: 'odometer', kind: 'tile', name: 'Huidige km-stand', render: (c) => tile(c.odoNow ? fmtOdo(c.odoNow) : '–', tr('huidige km-stand')) },
+    { id: 'total', kind: 'tile', name: 'Totaal km', render: (c) => tile(ICON.road, `${fmtBig(c.km)} km`, tr('totaal'), tr('incl. omrijkilometers')) },
+    { id: 'fee', kind: 'tile', name: 'Vergoeding', render: (c) => tile(ICON.euro, fmtEur(c.fee), tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })) },
+    { id: 'private', kind: 'tile', name: 'Privé-saldo', render: (c) => tile(ICON.wallet, `${fmtBig(c.privLeft)} km`, tr('privé-saldo {y}', { y: c.year }), tr('{u} van {a} km gebruikt', { u: fmtKm(c.privUsed), a: privAllowance() }), c.privLeft < 0 ? 'over' : '') },
+    { id: 'odometer', kind: 'tile', name: 'Huidige km-stand', render: (c) => tile(ICON.gauge, c.odoNow ? fmtOdo(c.odoNow) : '–', tr('huidige km-stand')) },
     { id: 'line', kind: 'line', name: 'Ritten en langste rit', render: (c) => (c.n ? `<p class="hint summary-line">${tr(c.days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: c.days }).replace(/^/, c.n + ' ')}${c.longest ? ` · ${tr('langste rit')}: ${fmtKm(c.longest.km)} km (${esc(placeName(c.longest.from))} → ${esc(placeName(c.longest.to))})` : ''}</p>` : '') },
-    { id: 'avgRide', kind: 'tile', name: 'Gemiddeld per rit', render: (c) => (c.st ? tile(`${fmtKm(c.st.totalKm / c.n)} km`, tr('gem. per rit')) : '') },
-    { id: 'avgDay', kind: 'tile', name: 'Gemiddeld per rijdag', render: (c) => (c.st ? tile(`${fmtKm(c.st.totalKm / c.st.days)} km`, tr('gem. per rijdag')) : '') },
-    { id: 'perDay', kind: 'tile', name: 'Ritten per rijdag', render: (c) => (c.st ? tile(fmtDec1(c.n / c.st.days), tr('ritten per rijdag')) : '') },
-    { id: 'busiest', kind: 'tile', name: 'Drukste dag', render: (c) => { if (!c.st) return ''; const b = c.st.byDay[c.st.busiest]; return tile(`${fmtKm(b.km)} km`, tr('drukste dag'), tr(b.n === 1 ? '{d} · {n} rit' : '{d} · {n} ritten', { d: shortDate(c.st.busiest), n: b.n })); } },
-    { id: 'streak', kind: 'tile', name: 'Langste reeks', render: (c) => (c.st ? tile(tr(c.st.streak === 1 ? '{n} dag' : '{n} dagen', { n: c.st.streak }), tr('langste reeks'), tr('werkdagen op rij')) : '') },
-    { id: 'detours', kind: 'tile', name: 'Omrijden', render: (c) => { if (!c.st) return ''; const d = c.st.parts.detour; return tile(`${c.st.totalKm ? fmtDec1((d / c.st.totalKm) * 100) : fmtDec1(0)}%`, tr('omrijden'), tr(c.st.detourRides === 1 ? '{n} rit · {km} km' : '{n} ritten · {km} km', { n: c.st.detourRides, km: fmtKm(d) })); } },
-    { id: 'forecast', kind: 'card', name: 'Verwachting eind van het jaar', render: (c) => (c.st?.forecast ? `<div class="card"><h2>${esc(tr('Verwachting eind {y}', { y: c.year }))}</h2>
+    { id: 'avgRide', kind: 'tile', name: 'Gemiddeld per rit', render: (c) => (c.st ? tile(ICON.ruler, `${fmtKm(c.st.totalKm / c.n)} km`, tr('gem. per rit')) : '') },
+    { id: 'avgDay', kind: 'tile', name: 'Gemiddeld per rijdag', render: (c) => (c.st ? tile(ICON.calendar, `${fmtKm(c.st.totalKm / c.st.days)} km`, tr('gem. per rijdag')) : '') },
+    { id: 'perDay', kind: 'tile', name: 'Ritten per rijdag', render: (c) => (c.st ? tile(ICON.repeat, fmtDec1(c.n / c.st.days), tr('ritten per rijdag')) : '') },
+    { id: 'busiest', kind: 'tile', name: 'Drukste dag', render: (c) => { if (!c.st) return ''; const b = c.st.byDay[c.st.busiest]; return tile(ICON.flame, `${fmtKm(b.km)} km`, tr('drukste dag'), tr(b.n === 1 ? '{d} · {n} rit' : '{d} · {n} ritten', { d: shortDate(c.st.busiest), n: b.n })); } },
+    { id: 'streak', kind: 'tile', name: 'Langste reeks', render: (c) => (c.st ? tile(ICON.zap, tr(c.st.streak === 1 ? '{n} dag' : '{n} dagen', { n: c.st.streak }), tr('langste reeks'), tr('werkdagen op rij')) : '') },
+    { id: 'detours', kind: 'tile', name: 'Omrijden', render: (c) => { if (!c.st) return ''; const d = c.st.parts.detour; return tile(ICON.detour, `${c.st.totalKm ? fmtDec1((d / c.st.totalKm) * 100) : fmtDec1(0)}%`, tr('omrijden'), tr(c.st.detourRides === 1 ? '{n} rit · {km} km' : '{n} ritten · {km} km', { n: c.st.detourRides, km: fmtKm(d) })); } },
+    { id: 'forecast', kind: 'card', name: 'Verwachting eind van het jaar', render: (c) => (c.st?.forecast ? `<div class="card">${h2i(ICON.trend, tr('Verwachting eind {y}', { y: c.year }))}
         <p class="forecast"><b>${fmtInt(c.st.forecast.km)} km</b><b>${fmtEur(c.st.forecast.fee)}</b></p>
         <p class="hint">${esc(tr('Als hij zo doorrijdt als sinds de eerste rit van dit jaar. Vakanties zijn niet meegerekend.'))}</p></div>` : '') },
     { id: 'timeline', kind: 'card', name: 'Km per week of maand', render: (c) => (c.st ? columnChart(tr(c.st.timeline.length === 12 ? 'Km per maand' : 'Km per week'), c.st.timeline) : '') },
-    { id: 'weekday', kind: 'card', name: 'Km per weekdag', render: (c) => (c.st ? columnChart(tr('Km per weekdag'), c.st.weekdays) : '') },
+    { id: 'weekday', kind: 'card', name: 'Km per weekdag', render: (c) => (c.st ? columnChart(tr('Km per weekdag'), c.st.weekdays, ICON.calendar) : '') },
     { id: 'split', kind: 'card', name: 'Waar gaan de kilometers heen?', render: (c) => (c.st ? splitChart(c.st.parts, c.st.totalKm) : '') },
-    { id: 'places', kind: 'card', name: 'Meest bezocht', render: (c) => (c.st?.destinations.length ? `<div class="card"><h2>${esc(tr('Meest bezocht'))}</h2><p class="hint">${esc(tr('{n} verschillende adressen, naast thuis en werk', { n: c.st.places }))}</p>
+    { id: 'places', kind: 'card', name: 'Meest bezocht', render: (c) => (c.st?.destinations.length ? `<div class="card">${h2i(ICON.pin, tr('Meest bezocht'))}<p class="hint">${esc(tr('{n} verschillende adressen, naast thuis en werk', { n: c.st.places }))}</p>
         <div class="routes-list">${c.st.destinations.map((d) => `<div><span>${esc(placeName(d.addr))}</span><b>×${d.n}</b></div>`).join('')}</div></div>` : '') },
-    { id: 'odoCheck', kind: 'card', name: 'Controle km-teller', render: (c) => (c.st?.odo ? `<div class="card"><h2>${esc(tr('Controle km-teller'))}</h2><div class="routes-list">
+    { id: 'odoCheck', kind: 'card', name: 'Controle km-teller', render: (c) => (c.st?.odo ? `<div class="card">${h2i(ICON.gauge, tr('Controle km-teller'))}<div class="routes-list">
         <div><span>${esc(tr('Gereden volgens km-teller'))}</span><b>${fmtOdo(c.st.odo.driven)} km</b></div>
         <div><span>${esc(tr('Geregistreerd in ritten'))}</span><b>${fmtKm(c.st.odo.logged)} km</b></div>
         <div><span>${esc(tr('Verschil'))}</span><b>${fmtKm(c.st.odo.diff)} km</b></div>
         <div><span>${esc(tr('Gaten tussen ritten'))}</span><b>${c.st.odo.gaps ? `${c.st.odo.gaps} · ${fmtOdo(c.st.odo.gapKm)} km` : esc(tr('geen'))}</b></div>
       </div></div>` : '') },
-    { id: 'routes', kind: 'card', name: 'Routes', render: (c) => (c.n ? `<div class="card"><h2>${esc(tr('Routes'))}</h2><div class="routes-list">${Object.entries(c.routes).sort((x, y) => y[1].n - x[1].n).slice(0, 8)
+    { id: 'routes', kind: 'card', name: 'Routes', render: (c) => (c.n ? `<div class="card">${h2i(ICON.route, tr('Routes'))}<div class="routes-list">${Object.entries(c.routes).sort((x, y) => y[1].n - x[1].n).slice(0, 8)
         .map(([k, r]) => `<div><span>${esc(k)} <small class="hint">×${r.n}</small></span><b>${fmtKm(r.km)} km</b></div>`).join('')}</div></div>` : '') },
   ];
   const WIDGET = Object.fromEntries(WIDGETS.map((w) => [w.id, w]));
@@ -1062,7 +1096,8 @@
     return { color: s.carColor || CAR_COLORS[0], body, dims: spec?.dims && spec.body === body ? spec.dims : null };
   }
   let carModule = null;
-  const loadCarModule = () => (carModule ||= import('./car3d.js'));
+  let silhouetteFn = null;
+  const loadCarModule = () => (carModule ||= import('./car3d.js').then((m) => { silhouetteFn = m.silhouette; return m; }));
   // Eén vaste 3D-weergave voor het overzicht, die bij elke herteken-beurt mee verhuist
   const carStage = document.createElement('div');
   carStage.className = 'car-stage';
@@ -1112,8 +1147,13 @@
     $('#c-colors').innerHTML = CAR_COLORS.map((c) => `<button type="button" data-color="${c}" style="background:${c}" class="${c === draft.carColor ? 'on' : ''}" aria-label="${c}"></button>`).join('');
     const spec = carSpec($('#c-model').value);
     const guess = BODY_TYPES.find(([k]) => k === (spec?.body || 'hatch'))[1];
-    $('#c-body').innerHTML = [['auto', `${tr('Automatisch')} (${tr(guess)})`], ...BODY_TYPES.map(([k, l]) => [k, tr(l)])]
-      .map(([k, l]) => `<button type="button" data-body="${k}" class="${k === draft.carBody ? 'on' : ''}">${esc(l)}</button>`).join('');
+    const sil = (k) => {
+      const p = silhouetteFn?.(k);
+      return p ? `<svg class="sil" viewBox="0 0 48 22" aria-hidden="true"><path d="${p.d}"/>${p.wheels.map((x) => `<circle cx="${x}" cy="${p.cy}" r="${p.r}"/>`).join('')}</svg>` : '';
+    };
+    $('#c-body').innerHTML = [['auto', tr('Automatisch'), spec?.body || 'hatch'], ...BODY_TYPES.map(([k, l]) => [k, tr(l), k])]
+      .map(([k, l, shape]) => `<button type="button" role="radio" aria-checked="${k === draft.carBody}" data-body="${k}" class="chip${k === draft.carBody ? ' on' : ''}">${
+        k === 'auto' ? `<span class="chip-ico">${ICON.sparkle}</span>` : sil(shape)}<span>${esc(l)}${k === 'auto' ? `<small> · ${esc(tr(guess))}</small>` : ''}</span></button>`).join('');
     $('#c-recog').textContent = spec?.name
       ? tr('Herkend: {m} — vorm en maten kloppen met de echte auto', { m: spec.name })
       : ($('#c-model').value.trim() ? tr('Model niet herkend — kies hieronder de vorm die het meest lijkt') : '');
@@ -1130,6 +1170,7 @@
       const { mountCar } = await loadCarModule();
       previewView?.destroy();
       previewView = mountCar($('#car-preview'), draftOpts());
+      renderCarPickers();
     } catch { $('#car-preview').innerHTML = `<div class="car-fallback">${esc(tr('3D niet beschikbaar op dit toestel'))}</div>`; }
   }
   $('#car-row').addEventListener('click', openCarDialog);
@@ -1390,9 +1431,10 @@
   }
   function renderConnectCard() {
     const card = $('#connect-card');
-    if (state.settings.scriptUrl) { card.classList.add('hidden'); return; }
+    if (state.settings.scriptUrl || state.settings.connectHidden) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
     card.innerHTML = `
+      <button type="button" class="card-close" id="connect-close" aria-label="${esc(tr('Niet nu'))}">${ICON.close}</button>
       <h2>${tr('Koppel je Google Sheet')}</h2>
       <p class="hint">${tr(NATIVE ? 'Plak hier de koppel-link uit je Google Sheet.' : 'Scan de QR-code die je Sheet laat zien, of plak de koppel-link hier.')}</p>
       <div class="stack">
@@ -1412,6 +1454,10 @@
     loadScriptText().catch(() => {});
   }
   $('#connect-card').addEventListener('click', async (e) => {
+    if (e.target.closest('#connect-close')) {
+      state.settings.connectHidden = true; save(); renderConnectCard();
+      return toast(tr('Later koppelen kan via Instellingen → Koppeling'), 3500);
+    }
     if (e.target.id === 'connect-btn') {
       const parsed = parseConnect($('#connect-input').value);
       if (!parsed) return toast(tr('Dat lijkt geen koppel-link. Kopieer hem van de pagina met de QR-code.'), 4000);

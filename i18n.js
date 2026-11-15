@@ -171,6 +171,8 @@
     'Voorbeeldritten verwijderd': 'Sample rides removed',
     '{n} voorbeeldritten geladen — kijk bij Ritten en Overzicht': '{n} sample rides loaded — have a look at Trips and Summary',
     'voorbeeld': 'sample',
+    'Niet nu': 'Not now',
+    'Later koppelen kan via Instellingen → Koppeling': 'You can connect later in Settings → Connection',
     'Nu synchroniseren': 'Sync now',
     'Alles is bijgewerkt ✓': 'Everything is up to date ✓',
     'Terug': 'Back',
