@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-15.3';
+  const APP_VERSION = '2026-11-15.4';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -123,6 +123,7 @@
   }
   let state;
   try { state = JSON.parse(localStorage.getItem(STORE_KEY)) || defaultState(); } catch { state = defaultState(); }
+  { const d = defaultState(); for (const k of ['places', 'routes', 'trips']) if (!state[k]) state[k] = d[k]; state.settings = { ...d.settings, ...state.settings }; }
   const save = () => {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { console.warn(e); }
     window.dispatchEvent(new Event('ritlog:saved')); // account-synchronisatie luistert hiernaar
@@ -394,7 +395,7 @@
       if (t) {
         Object.assign(t, data, { modified: stamp, cloudDirty: true });
         if (t.sync === 'synced' || t.sync === 'error-update') t.sync = 'update';
-        else if (t.sync === 'local' && state.settings.scriptUrl) t.sync = 'add';
+        else if (t.sync === 'local' && !t.demo && state.settings.scriptUrl) t.sync = 'add';
       }
       toast(tr('Rit bijgewerkt'));
     } else {
@@ -737,7 +738,7 @@
         <span class="status ${statusClass(t)}" title="${esc(t.error || t.sync)}"></span>
         <span class="t-main">
           <div class="t-title">${esc(desc || route)}</div>
-          <div class="t-sub">${esc(desc ? `${ride} · ${route}` : ride)}</div>
+          <div class="t-sub">${t.demo ? `<span class="demo-tag">${esc(tr('voorbeeld'))}</span> ` : ''}${esc(desc ? `${ride} · ${route}` : ride)}</div>
         </span>
         <span class="t-km">${fmtKm(t.km)} km<small>${fmtEur(t.fee)}</small></span>
       </button>`;
@@ -1218,7 +1219,7 @@
     $('#s-url').value = s.scriptUrl; $('#s-token').value = s.token;
     $('#s-rate').value = String(s.rate).replace('.', ',');
     $('#s-type').value = s.defaultType; $('#s-driver').value = s.driver;
-    renderCarRow(); renderAccount();
+    renderCarRow(); renderAccount(); renderDemoBtn();
     $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
     $('#s-odo').value = fmtOdo(latestOdo());
     $('#s-priv').value = privAllowance();
@@ -1327,7 +1328,7 @@
     state.settings.scriptUrl = url; state.settings.token = token || '';
     try {
       const r = await api({ action: 'ping' });
-      state.trips.forEach((t) => { if (t.sync === 'local') t.sync = 'add'; });
+      state.trips.forEach((t) => { if (t.sync === 'local' && !t.demo) t.sync = 'add'; });
       save(); renderSyncPill();
       toast(tr('Gekoppeld met Google Sheet ✓'));
       await flush(); await pull(true);
@@ -1442,7 +1443,7 @@
     if (cfg.lastOdo) state.lastOdo = Math.max(cfg.lastOdo, state.lastOdo || 0);
     if (Array.isArray(cfg.places)) state.places = cfg.places.map((pl) => ({ id: uid(), aliases: [], role: '', ...pl }));
     (cfg.knownRoutes || []).forEach(([a, b, km, min]) => { const k = norm(a) + '→' + norm(b); if (!state.routes[k]) state.routes[k] = { km, min, n: 1, seed: true }; });
-    if (st.scriptUrl) state.trips.forEach((t) => { if (t.sync === 'local') t.sync = 'add'; });
+    if (st.scriptUrl) state.trips.forEach((t) => { if (t.sync === 'local' && !t.demo) t.sync = 'add'; });
     save();
     if (!editingId) resetForm();
     renderQuick(); renderSyncPill();
@@ -1596,7 +1597,7 @@
         state.cloud.settingsHash = mine; state.cloud.settingsAt = up.updated_at;
       }
       // 2. Gewijzigde ritten uploaden (ritten die nog naar de Sheet moeten, wachten daarop)
-      const dirty = state.trips.filter((t) => t.cloudDirty && t.sync !== 'delete' && !(state.settings.scriptUrl && t.sync === 'add'));
+      const dirty = state.trips.filter((t) => t.cloudDirty && !t.demo && t.sync !== 'delete' && !(state.settings.scriptUrl && t.sync === 'add'));
       for (let i = 0; i < dirty.length; i += 500) {
         const chunk = dirty.slice(i, i + 500);
         const { error } = await SB.from('rides').upsert(chunk.map(rideRow), { onConflict: 'user_id,client_id' });
@@ -1653,7 +1654,7 @@
     }
     if (state.cloud.userId !== s.user.id) {
       state.cloud = { userId: s.user.id };
-      state.trips.forEach((t) => { if (t.sync !== 'delete') t.cloudDirty = true; });
+      state.trips.forEach((t) => { if (t.sync !== 'delete' && !t.demo) t.cloudDirty = true; });
       // Bestaat het account al met instellingen, dan winnen die; anders uploaden we de lokale
       const { data: prof } = await SB.from('profiles').select('settings, updated_at').eq('id', s.user.id).maybeSingle();
       if (prof?.settings?.settings) { applyCloudSettings(prof.settings); state.cloud.settingsAt = prof.updated_at; state.cloud.settingsHash = JSON.stringify(cloudSettings()); }
@@ -2072,6 +2073,97 @@
   });
   $('#onb-redo').addEventListener('click', () => openOnboarding('car'));
   $('#onb-tour').addEventListener('click', () => openOnboarding('tour', 'tour'));
+
+  /* ---------- Voorbeeldritten (alleen lokaal, nooit naar account of Sheet) ---------- */
+  const DEMO_PLACES = [
+    { name: 'Thuis', address: 'Oude Delft 50, Delft', role: 'home', aliases: ['huis', 'thuis', 'home'] },
+    { name: 'Werk', address: 'Weena 70, Rotterdam', role: 'work', aliases: ['werk', 'kantoor', 'office', 'work'] },
+    { name: 'Klant Utrecht', address: 'Stationsplein 1, Utrecht', role: '', aliases: ['utrecht'] },
+    { name: 'Klant Den Haag', address: 'Spui 70, Den Haag', role: '', aliases: ['den haag'] },
+    { name: 'Groothandel', address: 'Fokkerstraat 20, Schiedam', role: '', aliases: ['groothandel'] },
+    { name: 'Collega', address: 'Markt 1, Gouda', role: '', aliases: ['collega'] },
+  ];
+  // Afstanden tussen de voorbeeldplekken (km, ~min)
+  const DEMO_KM = { 'Thuis|Werk': [16.8, 25], 'Werk|Klant Utrecht': [57.4, 45], 'Werk|Klant Den Haag': [24.6, 28], 'Werk|Groothandel': [9.2, 15],
+    'Werk|Collega': [27.3, 28], 'Thuis|Klant Den Haag': [12.1, 20], 'Klant Utrecht|Thuis': [67.9, 55], 'Klant Den Haag|Thuis': [12.1, 20],
+    'Groothandel|Thuis': [11.5, 17], 'Collega|Thuis': [33.0, 32], 'Klant Den Haag|Werk': [24.6, 28] };
+  const hasDemo = () => state.trips.some((t) => t.demo);
+  function loadDemo() {
+    // Eenvoudige vaste willekeur, zodat het voorbeeld er elke keer hetzelfde uitziet
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+    const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+    const placeOf = {};
+    DEMO_PLACES.forEach((p) => {
+      let pl = p.role ? placeByRole(p.role) : state.places.find((x) => x.name === p.name);
+      if (!pl) { pl = { id: uid(), ...p, demo: true }; state.places.push(pl); }
+      placeOf[p.name] = pl.address;
+    });
+    const dist = (a, b) => DEMO_KM[`${a}|${b}`] || DEMO_KM[`${b}|${a}`] || [15, 20];
+    let odo = 98120;
+    const trips = [];
+    const ride = (date, no, from, to, desc, type = 'Zakelijk') => {
+      const [km0] = dist(from, to);
+      const km = Math.round((km0 + (rnd() - 0.5) * 0.6) * 100) / 100;
+      const detour = rnd() < 0.08 ? Math.round((1 + rnd() * 3) * 10) / 10 : null;
+      const priv = type === 'Privé';
+      const t = {
+        id: 'demo-' + uid(), demo: true, date, tripNo: no, desc, km, fee: calcFee(km, type), type,
+        detourBiz: !priv && detour ? detour : null, detourPriv: priv && detour ? detour : null,
+        from: placeOf[from], to: placeOf[to], car: state.settings.car || 'Toyota Aygo', plate: '', driver: '',
+        odoStart: odo, odoEnd: (odo += Math.round(km + (detour || 0))), sync: 'local', cloudDirty: false,
+      };
+      trips.push(t);
+    };
+    const today = new Date();
+    for (let back = 92; back >= 1; back--) {
+      const d = new Date(today); d.setDate(d.getDate() - back);
+      const day = d.getDay(), date = isoDate(d);
+      if (day === 0 || day === 6) {
+        if (rnd() < 0.18) { ride(date, 1, 'Thuis', 'Klant Den Haag', 'Privé: boodschappen', 'Privé'); ride(date, 2, 'Klant Den Haag', 'Thuis', 'Privé: terug naar huis', 'Privé'); }
+        continue;
+      }
+      if (rnd() < 0.12) continue; // vrije dag
+      let no = 1;
+      ride(date, no++, 'Thuis', 'Werk', 'Van huis naar werk');
+      const r = rnd();
+      if (r < 0.18) {
+        const c = pick(['Klant Utrecht', 'Klant Den Haag', 'Groothandel']);
+        ride(date, no++, 'Werk', c, pick(['Overleg met klant', 'Montage bij klant', 'Onderdelen ophalen', 'Klacht afhandelen bij klant']));
+        ride(date, no++, c, 'Thuis', 'Naar huis');
+      } else if (r < 0.26) {
+        ride(date, no++, 'Werk', 'Collega', 'Collega thuis afzetten');
+        ride(date, no++, 'Collega', 'Thuis', 'Naar huis');
+      } else {
+        ride(date, no++, 'Werk', 'Thuis', 'Van werk naar huis');
+      }
+    }
+    state.trips.push(...trips);
+    if (!state.settings.car) Object.assign(state.settings, { car: 'Toyota Aygo', carName: state.settings.carName || 'Bolletje', carColor: state.settings.carColor || '#e5484d' });
+    Object.entries(DEMO_KM).forEach(([k, [km, min]]) => { const [a, b] = k.split('|'); learnRoute(placeOf[a], placeOf[b], km, min); learnRoute(placeOf[b], placeOf[a], km, min); });
+    save();
+    return trips.length;
+  }
+  function removeDemo() {
+    state.trips = state.trips.filter((t) => !t.demo);
+    const used = new Set(state.trips.flatMap((t) => [norm(t.from), norm(t.to)]));
+    state.places = state.places.filter((p) => !p.demo || used.has(norm(p.address)));
+    save();
+  }
+  function renderDemoBtn() {
+    $('#demo-btn').textContent = tr(hasDemo() ? 'Voorbeeldritten verwijderen' : 'Voorbeeldritten laden');
+  }
+  $('#demo-btn').addEventListener('click', () => {
+    if (hasDemo()) {
+      if (!confirm(tr('Alle voorbeeldritten verwijderen? Je eigen ritten blijven staan.'))) return;
+      removeDemo(); toast(tr('Voorbeeldritten verwijderd'));
+    } else {
+      const n = loadDemo();
+      toast(tr('{n} voorbeeldritten geladen — kijk bij Ritten en Overzicht', { n }), 3500);
+    }
+    renderDemoBtn(); resetForm(); renderQuick(); renderSettings();
+  });
+  renderDemoBtn();
 
   /* ---------- start ---------- */
   if (/setup=|connect=/.test(location.hash)) {
