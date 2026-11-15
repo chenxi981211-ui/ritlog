@@ -215,7 +215,12 @@ export function buildCar({ color = '#3b7ddd', body = 'hatch', dims } = {}) {
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.005; sh.material.opacity = 0.7;
   car.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   car.add(sh);
-  car.userData.size = { L, W, g: 0, h1: H, h2: 0 };
+  // Precies in het midden: verschuif alles zodat het kader van de auto rond (0, 0) ligt
+  const box = new THREE.Box3();
+  car.children.forEach((c) => { if (c !== sh) box.expandByObject(c); });
+  const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2;
+  car.children.forEach((c) => { c.position.x -= cx; c.position.z -= cz; });
+  car.userData.size = { L: box.max.x - box.min.x, W: box.max.z - box.min.z, g: 0, h1: box.max.y, h2: 0 };
   return car;
 }
 
@@ -257,7 +262,7 @@ export function mountCar(container, opts = {}) {
     const radius = Math.hypot(b.L, b.W) / 2 + 0.25;
     const aspect = camera.aspect;
     const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) / Math.min(1, aspect * 0.9) * 0.72;
-    const target = new THREE.Vector3(0, (b.g + b.h1 + b.h2) * 0.42, 0);
+    const target = new THREE.Vector3(0, (b.g + b.h1 + b.h2) * 0.36, 0);
     camera.position.set(0, target.y + dist * 0.62, dist * 0.92); // hoger standpunt, speelgoed-diorama
     camera.lookAt(target);
   }

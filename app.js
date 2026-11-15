@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-16.1';
+  const APP_VERSION = '2026-11-16.2';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -923,7 +923,7 @@
   const WIDGETS = [
     { id: 'car', kind: 'card', name: 'Mijn auto', render: (c) => carCardHtml(c) },
     { id: 'total', kind: 'tile', name: 'Totaal km', render: (c) => tile(ICON.road, `${fmtBig(c.km)} km`, tr('totaal'), tr('incl. omrijkilometers')) },
-    { id: 'fee', kind: 'tile', name: 'Vergoeding', render: (c) => tile(ICON.euro, fmtEur(c.fee), tr('vergoeding ({r}/km)', { r: fmtEur(state.settings.rate) })) },
+    { id: 'fee', kind: 'tile', name: 'Vergoeding', render: (c) => tile(ICON.euro, fmtEur(c.fee), tr('vergoeding'), tr('{r} per km', { r: fmtEur(state.settings.rate) })) },
     { id: 'private', kind: 'tile', name: 'Privé-saldo', render: (c) => tile(ICON.wallet, `${fmtBig(c.privLeft)} km`, tr('privé-saldo {y}', { y: c.year }), tr('{u} van {a} km gebruikt', { u: fmtKm(c.privUsed), a: privAllowance() }), c.privLeft < 0 ? 'over' : '') },
     { id: 'odometer', kind: 'tile', name: 'Huidige km-stand', render: (c) => tile(ICON.gauge, c.odoNow ? fmtOdo(c.odoNow) : '–', tr('huidige km-stand')) },
     { id: 'line', kind: 'line', name: 'Ritten en langste rit', render: (c) => (c.n ? `<p class="hint summary-line">${tr(c.days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: c.days }).replace(/^/, c.n + ' ')}${c.longest ? ` · ${tr('langste rit')}: ${fmtKm(c.longest.km)} km (${esc(placeName(c.longest.from))} → ${esc(placeName(c.longest.to))})` : ''}</p>` : '') },
@@ -1126,7 +1126,7 @@
     const meta = [s.car, s.plate ? `<span class="plate">${esc(s.plate)}</span>` : ''].filter(Boolean);
     const total = liveTrips().length;
     return `<div class="card car-card"><div data-car-slot></div>
-      <button type="button" class="list-row car-info" id="car-open" style="padding-top:2px">
+      <button type="button" class="list-row car-info" id="car-open">
         <span class="grow">
           <span class="car-name${s.carName ? '' : ' placeholder'}">${esc(s.carName || tr('Geef je auto een naam'))}</span>
           <span class="car-meta">${meta.length ? meta.map((x) => (x.startsWith('<') ? x : esc(x))).join(' · ') : esc(tr('Tik om je auto toe te voegen'))}</span>
@@ -2205,7 +2205,7 @@
       removeDemo(); toast(tr('Voorbeeldritten verwijderd'));
     } else {
       const n = loadDemo();
-      toast(tr('{n} voorbeeldritten geladen — kijk bij Ritten en Overzicht', { n }), 3500);
+      toast(tr('{n} voorbeeldritten geladen', { n }));
     }
     renderDemoBtn(); resetForm(); renderQuick(); renderSettings();
   });
