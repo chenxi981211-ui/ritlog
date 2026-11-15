@@ -90,6 +90,8 @@ def setup():
     bid = next((b['id'] for b in ids if b['attributes']['identifier'] == bundle), None)
     if not bid:
         raise SystemExit(f'Bundle ID {bundle} niet gevonden in je ontwikkelaarsaccount')
+    caps = call('GET', f'/bundleIds/{bid}/bundleIdCapabilities')['data']
+    print('Mogelijkheden van de App ID:', ', '.join(sorted(c['attributes']['capabilityType'] for c in caps)) or '(geen)')
     name = f'Ritlog CI {run_id}'
     prof = call('POST', '/profiles', {'data': {'type': 'profiles', 'attributes': {'name': name, 'profileType': 'IOS_APP_STORE'},
                                                 'relationships': {'bundleId': {'data': {'type': 'bundleIds', 'id': bid}},

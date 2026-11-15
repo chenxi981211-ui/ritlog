@@ -99,6 +99,14 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--keychain $SIGN_KEYCHAIN" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
+      - name: Controle — rechten in de gebouwde app
+        run: |
+          APP="$RUNNER_TEMP/Ritlog.xcarchive/Products/Applications/App.app"
+          echo "== Rechten (entitlements) in de app =="
+          codesign -d --entitlements :- "$APP" 2>/dev/null | plutil -p - || true
+          echo "== Rechten in het profiel =="
+          security cms -D -i "$APP/embedded.mobileprovision" | plutil -extract Entitlements xml1 -o - - | plutil -p - || true
+
       - name: Uploaden naar App Store Connect / TestFlight
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
