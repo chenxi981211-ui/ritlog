@@ -40,7 +40,10 @@ def call(method, path, body=None):
 
 
 def run(*cmd):
-    subprocess.run(cmd, check=True)
+    # Bij een fout alleen het commando noemen, niet de argumenten (daar zit een wachtwoord tussen)
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(f'{cmd[0]} {cmd[1]} mislukt ({r.returncode}): {r.stderr.strip()[:300]}')
 
 
 def setup():
@@ -62,7 +65,10 @@ def setup():
     # 2. In een tijdelijke keychain zetten
     p12_pass = secrets.token_hex(16)
     kc_pass = secrets.token_hex(16)
-    p12 = pkcs12.serialize_key_and_certificates(b'ritlog', key, certificate, None, serialization.BestAvailableEncryption(p12_pass.encode()))
+    # macOS 'security import' leest alleen de oudere PKCS#12-versleuteling (3DES/SHA1)
+    enc = (serialization.PrivateFormat.PKCS12.encryption_builder().kdf_rounds(50000)
+           .key_cert_algorithm(pkcs12.PBES.PBESv1SHA1And3KeyTripleDESCBC).hmac_hash(hashes.SHA1()).build(p12_pass.encode()))
+    p12 = pkcs12.serialize_key_and_certificates(b'ritlog', key, certificate, None, enc)
     p12_path = os.path.join(TMP, 'dist.p12')
     open(p12_path, 'wb').write(p12)
     kc = os.path.join(TMP, 'ritlog-ci.keychain-db')
