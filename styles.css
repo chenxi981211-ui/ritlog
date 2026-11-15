@@ -244,10 +244,12 @@ details.more summary { color: var(--primary); font-weight: 600; font-size: 14px;
 .day-rides .warn { color: var(--warn); font-weight: 600; }
 
 .save-bar {
-  position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 4;
-  margin: 0 -16px; padding: 10px 16px 8px;
-  background: linear-gradient(to bottom, transparent, var(--bg) 30%);
+  /* Loopt door tot de onderkant (achter de tabbalk), zodat er geen formulier tussen knop en tabbalk doorschemert */
+  position: sticky; bottom: 0; z-index: 4;
+  margin: 0 -16px; padding: 22px 16px calc(98px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent 0, var(--bg) 20px);
 }
+body:has(#screen-new.active) { padding-bottom: 0; }
 .save-summary { font-size: 13px; color: var(--muted); margin-bottom: 8px; text-align: center; min-height: 18px; }
 
 /* ---------- Rittenlijst ---------- */
@@ -536,3 +538,13 @@ body.onb-open { overflow: hidden; }
 .mock-sync { display: flex; align-items: center; gap: 12px; font-weight: 600; }
 .mock-sync .round-btn { box-shadow: var(--shadow-float); }
 @media (prefers-reduced-motion: reduce) { .mock-tile.hero { animation: none; } }
+
+/* ---------- Gelijkmatige afstanden ---------- */
+.card > h2 + .hint { margin-top: -4px; }
+.card > .hint + .stack, .card > .hint + input, .card > .hint + .row { margin-top: 14px; }
+.card > .row.gap, .card > .btn.small:last-child { margin-top: 14px; }
+.card > .grid2 + .btn { margin-top: 16px; }
+/* In twee kolommen: velden onderaan uitlijnen, ook als een label over twee regels loopt */
+.grid2 > div { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+.grid2 label { line-height: 1.3; }
+.card > label:first-child, .card > h2:first-child { margin-top: 0; }

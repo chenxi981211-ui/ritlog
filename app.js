@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-15.1';
+  const APP_VERSION = '2026-11-15.2';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -648,8 +648,11 @@
     const errors = state.trips.filter((t) => /^error/.test(t.sync)).length;
     const local = state.trips.filter((t) => t.sync === 'local').length;
     pill.className = 'round-btn sync-pill' + (refreshing ? ' spinning' : '');
+    // Alleen tonen als er iets te synchroniseren valt: een account of een gekoppelde Sheet
+    const syncs = hasAccount() || !!state.settings.scriptUrl;
+    pill.classList.toggle('hidden', !syncs);
     let text, cls = '';
-    if (!state.settings.scriptUrl) text = local ? tr('{n} lokaal', { n: local }) : tr('Niet gekoppeld');
+    if (!syncs) text = local ? tr('{n} lokaal', { n: local }) : tr('Niet gekoppeld');
     else if (flushing) { text = tr('Versturen…'); cls = 'pending'; }
     else if (pending) { text = tr('{n} in wachtrij', { n: pending }) + (errors ? ' !' : ''); cls = 'pending'; }
     else { text = navigator.onLine ? tr('Bijgewerkt') : 'Offline'; cls = 'ok'; }
@@ -658,19 +661,21 @@
     // Rond ververs-icoon met een statusstipje (groen = bijgewerkt, oranje = wachtrij, rood = fout)
     pill.innerHTML = ICON_REFRESH + `<span class="sync-dot">${pending ? pending : ''}</span>`;
     pill.title = text;
-    pill.setAttribute('aria-label', state.settings.scriptUrl ? tr('Vernieuwen uit Google Sheet') + ' — ' + text : text);
+    pill.setAttribute('aria-label', tr('Nu synchroniseren') + ' — ' + text);
     renderConnectCard();
   }
+  // Account (Supabase) bestaat pas verderop in dit bestand; tot die tijd: geen account
+  const hasAccount = () => { try { return !!session; } catch { return false; } };
+  // Eén knop voor alles: account en Google Sheet bijwerken
   async function refreshFromSheet() {
-    if (!state.settings.scriptUrl) return go('settings');
     if (refreshing) return;
     if (!navigator.onLine) return toast(tr('Offline — vernieuwen lukt zodra je weer internet hebt'), 3500);
     refreshing = true; renderSyncPill();
     try {
-      await flush();
-      await pull(false);
-      const err = state.trips.find((t) => t.error);
-      if (err) toast(tr('Laatste fout: {e}', { e: err.error }), 4000);
+      if (state.settings.scriptUrl) { await flush(); await pull(true); }
+      if (hasAccount()) await cloudSync();
+      const err = state.trips.find((t) => t.error) || (state.cloud?.error ? { error: state.cloud.error } : null);
+      toast(err ? tr('Laatste fout: {e}', { e: err.error }) : tr('Alles is bijgewerkt ✓'), err ? 4000 : 2200);
     } finally {
       refreshing = false; renderSyncPill();
     }
@@ -1655,7 +1660,7 @@
       applyingCloud = true; save(); applyingCloud = false;
     }
     hideAuth();
-    resetForm(); applyLang();
+    resetForm(); applyLang(); renderSyncPill();
     cloudSync();
   }
 
@@ -1778,7 +1783,7 @@
     SB.auth.onAuthStateChange((event, s) => {
       if (event === 'SIGNED_IN' && s && s.user.id !== session?.user.id) onSignedIn(s);
       else if (event === 'TOKEN_REFRESHED' && s) session = s;
-      else if (event === 'SIGNED_OUT') { session = null; renderAccount(); }
+      else if (event === 'SIGNED_OUT') { session = null; renderAccount(); renderSyncPill(); }
     });
     if (data.session) await onSignedIn(data.session);
     else if (!state.settings.skipAccount) showAuth();

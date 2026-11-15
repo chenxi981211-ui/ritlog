@@ -165,6 +165,8 @@
     'Kopieer deze link:': 'Copy this link:',
     'Rit {n}': 'Ride {n}',
     'Bijgewerkt': 'Synced',
+    'Nu synchroniseren': 'Sync now',
+    'Alles is bijgewerkt ✓': 'Everything is up to date ✓',
     'Terug': 'Back',
     'Volgende': 'Next',
     'Overslaan': 'Skip',
