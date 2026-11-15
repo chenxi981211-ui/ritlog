@@ -167,6 +167,19 @@
         </button>
       </div>
 
+      <div class="card list-card">
+        <button type="button" class="list-row" id="onb-redo">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v4h4"/></svg></span>
+          <span class="grow"><strong>Opnieuw instellen</strong><small>Auto, vaste plekken, vergoeding en koppeling</small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="list-row" id="onb-tour">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg></span>
+          <span class="grow"><strong>Rondleiding bekijken</strong><small>Korte uitleg van de belangrijkste functies</small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+
       <div class="section-label">Weergave</div>
       <div class="card">
         <label>Thema</label>
@@ -282,6 +295,7 @@
       <input id="c-name" name="carName" placeholder="Bijv. Bolletje" maxlength="24">
       <label for="c-model">Merk en model</label>
       <input id="c-model" name="car" placeholder="Bijv. Toyota Aygo">
+      <p class="hint" id="c-recog" data-dyn></p>
       <label for="c-plate">Kenteken</label>
       <input id="c-plate" name="plate" placeholder="AB-123-C" autocapitalize="characters">
       <label>Kleur</label>
@@ -326,7 +340,20 @@
     </div>
   </section>
 
+  <section class="onb hidden" id="onboarding" aria-label="Welkom">
+    <header class="onb-top">
+      <button type="button" class="link onb-back" id="onb-back">Terug</button>
+      <div class="onb-dots" id="onb-dots" data-dyn></div>
+      <button type="button" class="link onb-skip" id="onb-skip">Overslaan</button>
+    </header>
+    <div class="onb-body" id="onb-body" data-dyn></div>
+    <footer class="onb-foot">
+      <button type="button" class="btn primary" id="onb-next" data-dyn>Volgende</button>
+    </footer>
+  </section>
+
   <script src="vendor/supabase.js"></script>
+  <script src="cars.js"></script>
   <script src="config.js"></script>
   <script src="i18n.js"></script>
   <script src="app.js"></script>

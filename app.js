@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-14.5';
+  const APP_VERSION = '2026-11-15.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1044,21 +1044,17 @@
 
   /* ---------- Mijn auto ---------- */
   const CAR_COLORS = ['#3b7ddd', '#e5484d', '#f08c3a', '#f2c94c', '#3f9b6b', '#9fd8c4', '#8e6cd8', '#f2a7c3', '#f4f4f2', '#b9bcc2', '#6b7078', '#2a2b2e'];
-  const BODY_TYPES = [['hatch', 'Hatchback'], ['sedan', 'Sedan'], ['wagon', 'Stationwagen'], ['suv', 'SUV'], ['van', 'Busje'], ['sport', 'Sportwagen']];
-  // Vorm raden uit merk en model; valt terug op een hatchback
-  function guessBody(model) {
-    const m = ` ${String(model || '').toLowerCase()} `;
-    if (/transit|vito|sprinter|kangoo|caddy|transporter|berlingo|partner|trafic|vivaro|ducato|crafter|jumpy|expert|proace|master|citan|townstar|combo cargo|id\. ?buzz|\bbus\b|\bvan\b/.test(m)) return 'van';
-    if (/911|porsche (718|boxster|cayman)|mx-?5|miata|supra|\bz4\b|\btt\b|corvette|mustang|ferrari|lamborghini|f-type|amg gt|\bgt86\b|\bgr86\b|\bbrz\b/.test(m)) return 'sport';
-    if (/estate|touring|variant|avant|combi|kombi|\bsw\b|break|sports tourer|stationwagen|shooting brake|\bv60\b|\bv90\b/.test(m)) return 'wagon';
-    if (/suv|rav ?4|tiguan|qashqai|kuga|tucson|sportage|\bx[1-7]\b|\bq[2-8]\b|xc ?40|xc ?60|xc ?90|ex ?30|model y|niro|kona|juke|cross|c-hr|\bchr\b|2008|3008|5008|captur|duster|t-roc|t-cross|karoq|kodiaq|ariya|id\. ?[4-7]|enyaq|ev ?[69]|ioniq ?5|cx-|mokka|countryman|evoque|range rover|defender|wrangler|macan|cayenne|outlander|tiguan|ateca|arona|formentor|bz4x|aircross/.test(m)) return 'suv';
-    if (/model [3s]|\ba[3-8] (sedan|limousine)|\ba[4-8]\b|3[- ]?serie|5[- ]?serie|[ce][- ]?klasse|c-class|e-class|passat|octavia|superb|accord|camry|mazda ?6|insignia|\bs60\b|\bs90\b|ioniq ?6|\bi4\b|\bi5\b|polestar 2|\bseal\b|corolla sedan/.test(m)) return 'sedan';
-    return 'hatch';
+  const BODY_TYPES = [['hatch', 'Hatchback'], ['sedan', 'Sedan'], ['fastback', 'Liftback'], ['wagon', 'Stationwagen'], ['crossover', 'Crossover'],
+    ['suv', 'SUV'], ['mpv', 'MPV / bestelauto'], ['van', 'Busje'], ['sport', 'Sportwagen'], ['pickup', 'Pick-up']];
+  // Model herkennen (cars.js: echte vorm en maten); onbekend → hatchback met standaardmaten
+  const carSpec = (model) => window.RitlogCars?.lookup(model) || null;
+  const guessBody = (model) => carSpec(model)?.body || 'hatch';
+  function carOpts(s = state.settings) {
+    const spec = carSpec(s.car);
+    const body = s.carBody && s.carBody !== 'auto' ? s.carBody : (spec?.body || 'hatch');
+    // Echte maten alleen als de gekozen vorm bij het herkende model past
+    return { color: s.carColor || CAR_COLORS[0], body, dims: spec?.dims && spec.body === body ? spec.dims : null };
   }
-  const carOpts = (s = state.settings) => ({
-    color: s.carColor || CAR_COLORS[0],
-    body: s.carBody && s.carBody !== 'auto' ? s.carBody : guessBody(s.car),
-  });
   let carModule = null;
   const loadCarModule = () => (carModule ||= import('./car3d.js'));
   // Eén vaste 3D-weergave voor het overzicht, die bij elke herteken-beurt mee verhuist
@@ -1108,9 +1104,13 @@
   const draft = {};
   function renderCarPickers() {
     $('#c-colors').innerHTML = CAR_COLORS.map((c) => `<button type="button" data-color="${c}" style="background:${c}" class="${c === draft.carColor ? 'on' : ''}" aria-label="${c}"></button>`).join('');
-    const guess = BODY_TYPES.find(([k]) => k === guessBody($('#c-model').value))[1];
+    const spec = carSpec($('#c-model').value);
+    const guess = BODY_TYPES.find(([k]) => k === (spec?.body || 'hatch'))[1];
     $('#c-body').innerHTML = [['auto', `${tr('Automatisch')} (${tr(guess)})`], ...BODY_TYPES.map(([k, l]) => [k, tr(l)])]
       .map(([k, l]) => `<button type="button" data-body="${k}" class="${k === draft.carBody ? 'on' : ''}">${esc(l)}</button>`).join('');
+    $('#c-recog').textContent = spec?.name
+      ? tr('Herkend: {m} — vorm en maten kloppen met de echte auto', { m: spec.name })
+      : ($('#c-model').value.trim() ? tr('Model niet herkend — kies hieronder de vorm die het meest lijkt') : '');
   }
   const draftOpts = () => carOpts({ ...draft, car: $('#c-model').value });
   function updatePreview() { previewView?.update(draftOpts()); }
@@ -1558,7 +1558,7 @@
     if (i >= 0) state.trips[i] = t; else state.trips.push(t);
   }
   // Instellingen die met je account meegaan (thema en taal blijven per apparaat)
-  const SYNC_KEYS = ['rate', 'car', 'plate', 'driver', 'defaultType', 'privAllowance', 'carName', 'carColor', 'carBody', 'dash', 'scriptUrl', 'token', 'sheetTab'];
+  const SYNC_KEYS = ['rate', 'car', 'plate', 'driver', 'defaultType', 'privAllowance', 'carName', 'carColor', 'carBody', 'dash', 'onboarded', 'scriptUrl', 'token', 'sheetTab'];
   const cloudSettings = () => ({
     settings: Object.fromEntries(SYNC_KEYS.filter((k) => state.settings[k] !== undefined).map((k) => [k, state.settings[k]])),
     places: state.places.map(({ id, name, address, aliases, role }) => ({ id, name, address, aliases, role })),
@@ -1670,7 +1670,7 @@
     document.body.classList.add('auth-open');
     $('#auth-error').textContent = '';
   }
-  function hideAuth() { authEl.classList.add('hidden'); document.body.classList.remove('auth-open'); }
+  function hideAuth() { authEl.classList.add('hidden'); document.body.classList.remove('auth-open'); setTimeout(() => maybeOnboard(), 0); }
   function friendlyAuthError(err) {
     const m = String(err?.message || err || '');
     if (/cancel|1001|closed/i.test(m)) return '';
@@ -1773,7 +1773,7 @@
   });
 
   async function startAccounts() {
-    if (!SB) return;
+    if (!SB) { maybeOnboard(); return; }
     const { data } = await SB.auth.getSession();
     SB.auth.onAuthStateChange((event, s) => {
       if (event === 'SIGNED_IN' && s && s.user.id !== session?.user.id) onSignedIn(s);
@@ -1782,8 +1782,291 @@
     });
     if (data.session) await onSignedIn(data.session);
     else if (!state.settings.skipAccount) showAuth();
+    else maybeOnboard();
     renderAccount();
   }
+
+  /* ---------- Onboarding: eerste keer instellen + rondleiding ---------- */
+  // Stappen: welkom → auto → vaste plekken → vergoeding → koppeling → rondleiding.
+  // Bestaande gebruikers (met ritten of plekken) krijgen hem niet vanzelf te zien.
+  const onbEl = $('#onboarding');
+  const ONB_STEPS = ['welcome', 'car', 'places', 'money', 'connect', 'tour'];
+  const TOUR = ['quick', 'rides', 'summary', 'sync'];
+  let onb = { step: 0, tour: 0, only: null, car: null, home: '', work: '', route: null, store: 'app' };
+  let onbCarView = null;
+  const ico = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+
+  function maybeOnboard() {
+    if (state.settings.onboarded || !authEl.classList.contains('hidden')) return;
+    if (state.trips.length || state.places.length) { state.settings.onboarded = true; save(); return; }
+    openOnboarding();
+  }
+  function openOnboarding(startAt = 'welcome', only = null) {
+    const s = state.settings;
+    onb = {
+      step: ONB_STEPS.indexOf(startAt), tour: 0, only,
+      car: { carName: s.carName || '', car: s.car || '', carColor: s.carColor || CAR_COLORS[0], carBody: s.carBody || 'auto' },
+      home: placeByRole('home')?.address || '', work: placeByRole('work')?.address || '', route: null,
+      store: s.scriptUrl ? 'sheet' : 'app',
+    };
+    onbEl.classList.remove('hidden');
+    document.body.classList.add('onb-open');
+    renderOnb();
+  }
+  function closeOnboarding() {
+    onbCarView?.destroy(); onbCarView = null;
+    state.settings.onboarded = true; save();
+    onbEl.classList.add('hidden');
+    document.body.classList.remove('onb-open');
+    resetForm(); renderQuick(); applyLang(); go('new');
+  }
+  const stepName = () => ONB_STEPS[onb.step];
+
+  function renderOnb() {
+    const name = stepName();
+    const steps = onb.only === 'tour' ? TOUR.length : ONB_STEPS.length - 1 + TOUR.length;
+    const at = onb.only === 'tour' ? onb.tour : (name === 'tour' ? ONB_STEPS.length - 1 + onb.tour : onb.step);
+    $('#onb-dots').innerHTML = Array.from({ length: steps }, (_, i) => `<span class="${i === at ? 'on' : ''}"></span>`).join('');
+    $('#onb-back').style.visibility = at === 0 ? 'hidden' : 'visible';
+    $('#onb-skip').style.visibility = name === 'tour' && onb.tour === TOUR.length - 1 ? 'hidden' : 'visible';
+    if (name !== 'car') { onbCarView?.destroy(); onbCarView = null; }
+    const body = $('#onb-body');
+    const next = $('#onb-next');
+    next.disabled = false;
+    if (name === 'welcome') {
+      body.innerHTML = `<div class="onb-step">
+        <div class="onb-hero"><img src="icons/icon-512.png" alt=""></div>
+        <h2>${esc(tr('Welkom bij Ritlog'))}</h2>
+        <p class="lead">${esc(tr('Houd je zakelijke ritten bij in een paar tikken. In 1 minuut is alles ingesteld.'))}</p>
+        <div class="onb-points">
+          <div class="onb-point"><span class="l-ico">${ICON.work}</span><span><b>${esc(tr('Rit loggen in één tik'))}</b><small>${esc(tr('Vaste ritten zoals huis → werk staan klaar.'))}</small></span></div>
+          <div class="onb-point"><span class="l-ico">${ICON_REFRESH}</span><span><b>${esc(tr('Altijd bewaard'))}</b><small>${esc(tr('In je account, en als je wilt ook in je Google Sheet.'))}</small></span></div>
+          <div class="onb-point"><span class="l-ico">${ico('<path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/>')}</span><span><b>${esc(tr('Inzicht in je kilometers'))}</b><small>${esc(tr('Vergoeding, privé-saldo en statistieken.'))}</small></span></div>
+        </div></div>`;
+      next.textContent = tr('Aan de slag');
+    }
+    if (name === 'car') {
+      const c = onb.car;
+      const spec = carSpec(c.car);
+      body.innerHTML = `<div class="onb-step">
+        <h2>${esc(tr('Wat voor auto rijd je?'))}</h2>
+        <p class="lead">${esc(tr('We bouwen hem na. Typ merk en model en geef hem een naam.'))}</p>
+        <div class="car-stage" id="onb-car"></div>
+        <div class="card">
+          <label for="onb-model">${esc(tr('Merk en model'))}</label>
+          <input id="onb-model" value="${esc(c.car)}" placeholder="${esc(tr('Bijv. Toyota Aygo'))}" autocomplete="off">
+          <p class="hint" id="onb-recog">${spec?.name ? esc(tr('Herkend: {m} — vorm en maten kloppen met de echte auto', { m: spec.name })) : ''}</p>
+          <label for="onb-name">${esc(tr('Naam'))}</label>
+          <input id="onb-name" value="${esc(c.carName)}" placeholder="${esc(tr('Bijv. Bolletje'))}" maxlength="24">
+          <label>${esc(tr('Kleur'))}</label>
+          <div class="swatches" id="onb-colors">${CAR_COLORS.map((col) => `<button type="button" data-color="${col}" style="background:${col}" class="${col === c.carColor ? 'on' : ''}" aria-label="${col}"></button>`).join('')}</div>
+        </div></div>`;
+      next.textContent = tr('Volgende');
+      const opts = () => carOpts({ car: onb.car.car, carColor: onb.car.carColor, carBody: 'auto' });
+      loadCarModule().then(({ mountCar }) => { if (stepName() === 'car' && $('#onb-car')) onbCarView = mountCar($('#onb-car'), opts()); }).catch(() => {});
+      $('#onb-model').addEventListener('input', (e) => {
+        onb.car.car = e.target.value;
+        const sp = carSpec(e.target.value);
+        $('#onb-recog').textContent = sp?.name ? tr('Herkend: {m} — vorm en maten kloppen met de echte auto', { m: sp.name }) : (e.target.value.trim() ? tr('Model niet herkend — je kunt de vorm later kiezen bij Mijn auto') : '');
+        onbCarView?.update(opts());
+      });
+      $('#onb-name').addEventListener('input', (e) => { onb.car.carName = e.target.value; });
+      $('#onb-colors').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-color]'); if (!b) return;
+        onb.car.carColor = b.dataset.color;
+        $$('#onb-colors button').forEach((x) => x.classList.toggle('on', x === b));
+        onbCarView?.update(opts());
+      });
+    }
+    if (name === 'places') {
+      body.innerHTML = `<div class="onb-step">
+        <h2>${esc(tr('Waar rijd je meestal heen?'))}</h2>
+        <p class="lead">${esc(tr('Dan staat je vaste rit straks met één tik klaar.'))}</p>
+        <div class="card">
+          ${['home', 'work'].map((role) => `<div class="place-field" style="margin-bottom:12px">
+            <label for="onb-${role}">${esc(tr(role === 'home' ? 'Thuis' : 'Werk'))}</label>
+            <div class="input-wrap">
+              <input id="onb-${role}" value="${esc(onb[role])}" placeholder="${esc(tr('Straat 1, Plaats'))}" autocomplete="off">
+              <button type="button" class="icon-btn" data-onb-locate="${role}" aria-label="${esc(tr('Huidige locatie'))}">${ico('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>')}</button>
+            </div>
+            <div class="suggest hidden" data-onb-suggest="${role}"></div>
+          </div>`).join('')}
+          <div id="onb-route"></div>
+        </div></div>`;
+      next.textContent = tr('Volgende');
+      const showRoute = async () => {
+        const box = $('#onb-route'); if (!box) return;
+        if (!onb.home || !onb.work) { box.innerHTML = ''; return; }
+        const k = knownRoute(onb.home, onb.work);
+        if (k) onb.route = { km: k.km, min: k.min };
+        else {
+          box.innerHTML = `<p class="hint">${esc(tr('Route berekenen…'))}</p>`;
+          try { onb.route = await routeDistance(onb.home, onb.work); } catch { onb.route = null; }
+        }
+        if (stepName() !== 'places') return;
+        box.innerHTML = onb.route ? `<div class="onb-route">${ICON.work}<span>${esc(tr('Thuis → Werk: {km} km', { km: fmtKm(onb.route.km) }))}${onb.route.min ? ` · ~${onb.route.min} min` : ''}</span></div>` : '';
+      };
+      let t;
+      ['home', 'work'].forEach((role) => {
+        const input = $(`#onb-${role}`), box = $(`[data-onb-suggest="${role}"]`);
+        const pick = (v) => { input.value = v; onb[role] = v; box.classList.add('hidden'); showRoute(); };
+        input.addEventListener('input', () => {
+          onb[role] = input.value.trim(); clearTimeout(t);
+          const q = input.value.trim();
+          if (q.length < 3) { box.classList.add('hidden'); return; }
+          t = setTimeout(async () => {
+            try {
+              const hits = await suggestAddresses(q);
+              if (input.value.trim() !== q) return;
+              box.innerHTML = hits.map((h) => `<button type="button" data-v="${esc(h)}">${esc(h)}</button>`).join('');
+              box.classList.toggle('hidden', !hits.length);
+            } catch { /* offline */ }
+          }, 250);
+        });
+        input.addEventListener('change', showRoute);
+        input.addEventListener('blur', () => setTimeout(() => box.classList.add('hidden'), 180));
+        box.addEventListener('pointerdown', (e) => e.preventDefault());
+        box.addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) pick(b.dataset.v); });
+      });
+      $$('[data-onb-locate]').forEach((b) => b.addEventListener('click', async () => {
+        b.classList.add('busy');
+        try { const pos = await currentPosition(); const addr = await reverseGeocode(pos.lat, pos.lon); $(`#onb-${b.dataset.onbLocate}`).value = addr; onb[b.dataset.onbLocate] = addr; showRoute(); }
+        catch (err) { toast(err.message); }
+        b.classList.remove('busy');
+      }));
+      showRoute();
+    }
+    if (name === 'money') {
+      const s = state.settings;
+      body.innerHTML = `<div class="onb-step">
+        <h2>${esc(tr('Vergoeding en privé-kilometers'))}</h2>
+        <p class="lead">${esc(tr('Hiermee rekent Ritlog je vergoeding en privé-saldo uit. Je kunt dit later altijd aanpassen.'))}</p>
+        <div class="card">
+          <label for="onb-rate">${esc(tr('Vergoeding per km (€)'))}</label>
+          <input id="onb-rate" inputmode="decimal" value="${esc(String(s.rate ?? 0.25).replace('.', ','))}">
+          <label for="onb-priv">${esc(tr('Privé-km per jaar'))}</label>
+          <input id="onb-priv" inputmode="numeric" value="${esc(String(privAllowance()))}">
+          <label>${esc(tr('Meestal rijd ik'))}</label>
+          <div class="segmented" id="onb-type">${['Zakelijk', 'Privé'].map((v) => `<button type="button" data-v="${v}" class="${(s.defaultType || 'Zakelijk') === v ? 'on' : ''}">${esc(tr(v))}</button>`).join('')}</div>
+        </div></div>`;
+      next.textContent = tr('Volgende');
+      $('#onb-type').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-v]'); if (!b) return;
+        state.settings.defaultType = b.dataset.v;
+        $$('#onb-type button').forEach((x) => x.classList.toggle('on', x === b));
+      });
+    }
+    if (name === 'connect') {
+      const signedIn = !!session;
+      body.innerHTML = `<div class="onb-step">
+        <h2>${esc(tr('Waar bewaar je je ritten?'))}</h2>
+        <p class="lead">${esc(tr('Je ritten staan altijd in Ritlog. Gebruik je al een Google Sheet, dan kun je die erbij koppelen.'))}</p>
+        <button type="button" class="onb-option ${onb.store === 'app' ? 'on' : ''}" data-store="app">
+          <span class="l-ico">${ICON.user}</span>
+          <span><b>${esc(tr('Alleen in Ritlog'))}</b><small>${esc(tr(signedIn ? 'Veilig in je account en op al je apparaten.' : 'Op dit apparaat. Log later in om te synchroniseren.'))}</small></span>
+        </button>
+        <button type="button" class="onb-option ${onb.store === 'sheet' ? 'on' : ''}" data-store="sheet">
+          <span class="l-ico">${ico('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 3v18"/>')}</span>
+          <span><b>${esc(tr('Ook in mijn Google Sheet'))}</b><small>${esc(tr('Elke rit komt er automatisch bij, in je eigen kolommen.'))}</small></span>
+        </button>
+        <div class="card onb-sheet ${onb.store === 'sheet' ? '' : 'hidden'}" id="onb-sheet">
+          ${state.settings.scriptUrl ? `<p class="hint">✓ ${esc(tr('Je Google Sheet is al gekoppeld.'))}</p>` : `
+          <input id="onb-connect" placeholder="${esc(tr('Plak koppel-link…'))}" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <ol>
+            <li>${tr('Open je Google Sheet → <b>Extensies → Apps Script</b>. Wis alles, plak het script en klik op <b>Opslaan</b>.')}
+              <br><button type="button" class="btn small" id="onb-copy-script" style="margin-top:6px">${esc(tr('Kopieer script'))}</button></li>
+            <li>${tr('Klik <b>Implementeren → Nieuwe implementatie</b> → type <b>Web-app</b>. Zet <b>Wie heeft toegang</b> op <b>Iedereen</b> → <b>Implementeren</b> → geef toestemming.')}</li>
+            <li>${tr(NATIVE ? 'Klik op de <b>Web-app-link</b>, tik op <b>Kopieer koppel-link</b> en plak hem hierboven. Klaar!' : 'Klik op de <b>Web-app-link</b> en scan de QR-code met je iPhone. Klaar!')}</li>
+          </ol>`}
+        </div></div>`;
+      next.textContent = tr('Volgende');
+      body.querySelectorAll('[data-store]').forEach((b) => b.addEventListener('click', () => {
+        onb.store = b.dataset.store;
+        body.querySelectorAll('[data-store]').forEach((x) => x.classList.toggle('on', x === b));
+        $('#onb-sheet').classList.toggle('hidden', onb.store !== 'sheet');
+      }));
+      $('#onb-copy-script')?.addEventListener('click', async (e) => {
+        try { await navigator.clipboard.writeText(await loadScriptText()); e.target.textContent = tr('✓ Gekopieerd — plak in Apps Script'); } catch { /* geen klembord */ }
+      });
+    }
+    if (name === 'tour') {
+      const page = TOUR[onb.tour];
+      const mocks = {
+        quick: `<div class="mock-tiles"><div class="mock-tile hero"><span>${esc(tr('Voorstel · rit {n}', { n: 1 }))}</span><b>${esc(tr('Huis → Werk'))}</b>${onb.route ? `${fmtKm(onb.route.km)} km` : '22,60 km'}</div><div class="mock-tile"><span>&nbsp;</span><b>${esc(tr('Werk → Huis'))}</b>${onb.route ? `${fmtKm(onb.route.km)} km` : '22,60 km'}</div></div>`,
+        rides: `<div class="mock-step"><span>−</span><b>2</b><span>+</span></div><div class="mock-chips"><span class="ride-chip"><b>1</b>${esc(tr('Thuis'))} → ${esc(tr('Werk'))}</span><span class="ride-chip"><b>2</b>${esc(tr('Werk'))} → ${esc(tr('Thuis'))}</span></div>`,
+        summary: `<div class="mock-row lift">${ICON.grip}<span class="grow">${esc(tr('Totaal km'))}</span><span class="minus">−</span></div><div class="mock-row">${ICON.grip}<span class="grow">${esc(tr('Privé-saldo'))}</span><span class="minus">−</span></div><div class="mock-row">${ICON.grip}<span class="grow">${esc(tr('Km per weekdag'))}</span><span class="minus">−</span></div>`,
+        sync: `<div class="mock-sync"><span class="round-btn sync-pill ok">${ICON_REFRESH}<span class="sync-dot"></span></span><span>${esc(tr('Bijgewerkt'))}</span></div><div class="mock-sync"><span class="round-btn">${ICON.moon}</span><span>${esc(tr('Licht of donker'))}</span></div>`,
+      };
+      const texts = {
+        quick: ['Eén tik, rit gelogd', 'Bovenaan staan je vaste ritten. Tik erop, controleer en sla op. Afstand, datum en km-stand vult Ritlog zelf in.'],
+        rides: ['Ritnummers per dag', 'Elke rit krijgt automatisch het volgende nummer. Vergeten rit? Ritlog ziet het gat en vult het voor je in.'],
+        summary: ['Jouw overzicht', 'Tik bij Overzicht op het schuifjes-icoon om onderdelen te verslepen, weg te halen of toe te voegen.'],
+        sync: ['Altijd up-to-date', 'Het rondje bovenin ververst je ritten. Zonder internet bewaart Ritlog alles en stuurt het later door.'],
+      };
+      body.innerHTML = `<div class="onb-step">
+        <div class="tour-mock">${mocks[page]}</div>
+        <h2>${esc(tr(texts[page][0]))}</h2>
+        <p class="lead">${esc(tr(texts[page][1]))}</p></div>`;
+      next.textContent = onb.tour === TOUR.length - 1 ? tr('Eerste rit loggen') : tr('Volgende');
+    }
+  }
+
+  // Gegevens van de huidige stap bewaren
+  async function saveOnbStep() {
+    const name = stepName();
+    const s = state.settings;
+    if (name === 'car') {
+      const c = onb.car;
+      Object.assign(s, { carName: c.carName.trim(), car: c.car.trim(), carColor: c.carColor, carBody: 'auto' });
+      if (!editingId) F('car').value = s.car;
+    }
+    if (name === 'places') {
+      [['home', 'Thuis', ['huis', 'thuis', 'home']], ['work', 'Werk', ['werk', 'kantoor', 'office', 'work']]].forEach(([role, label, aliases]) => {
+        const addr = onb[role].trim(); if (!addr) return;
+        const existing = placeByRole(role);
+        if (existing) { existing.address = addr; delete existing.lat; delete existing.lon; }
+        else state.places.push({ id: uid(), name: label, address: addr, aliases, role });
+      });
+      if (onb.home && onb.work && onb.route) {
+        learnRoute(onb.home, onb.work, onb.route.km, onb.route.min);
+        learnRoute(onb.work, onb.home, onb.route.km, onb.route.min);
+      }
+    }
+    if (name === 'money') {
+      s.rate = parseDec($('#onb-rate').value) ?? s.rate;
+      const p = parseInt0($('#onb-priv').value); if (p != null) s.privAllowance = p;
+    }
+    if (name === 'connect' && onb.store === 'sheet' && !s.scriptUrl) {
+      const parsed = parseConnect($('#onb-connect')?.value);
+      if (parsed) { const r = await connectSheet(parsed.url, parsed.token); if (!r.ok) return false; }
+    }
+    save();
+    return true;
+  }
+  $('#onb-next').addEventListener('click', async () => {
+    const btn = $('#onb-next');
+    btn.disabled = true;
+    const ok = await saveOnbStep();
+    btn.disabled = false;
+    if (!ok) return;
+    if (stepName() === 'tour') {
+      if (onb.tour < TOUR.length - 1) { onb.tour++; renderOnb(); } else closeOnboarding();
+      return;
+    }
+    onb.step++; renderOnb();
+  });
+  $('#onb-back').addEventListener('click', () => {
+    if (stepName() === 'tour' && onb.tour > 0) onb.tour--;
+    else if (onb.step > 0 && onb.only !== 'tour') onb.step--;
+    renderOnb();
+  });
+  $('#onb-skip').addEventListener('click', async () => {
+    if (stepName() === 'tour' || onb.only === 'tour') { closeOnboarding(); return; }
+    await saveOnbStep();
+    onb.step = ONB_STEPS.indexOf('tour'); onb.tour = 0; renderOnb();
+  });
+  $('#onb-redo').addEventListener('click', () => openOnboarding('car'));
+  $('#onb-tour').addEventListener('click', () => openOnboarding('tour', 'tour'));
 
   /* ---------- start ---------- */
   if (/setup=|connect=/.test(location.hash)) {
