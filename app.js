@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-16.3';
+  const APP_VERSION = '2026-11-18.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2211,6 +2211,22 @@
   });
   renderDemoBtn();
 
+  /* ---------- Openingsanimatie (één keer per keer openen; tik om over te slaan) ---------- */
+  function playOpening() {
+    const el = $('#intro');
+    let seen = false;
+    try { seen = sessionStorage.getItem('ritlog.intro') === '1'; sessionStorage.setItem('ritlog.intro', '1'); } catch {}
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const force = /[?&]intro\b/.test(location.search);
+    if (!force && (seen || reduce || window.__ritlogNoIntro)) { el.remove(); return; }
+    const end = (cleanup) => { el.classList.add('show', 'out'); setTimeout(() => { cleanup?.(); el.remove(); }, 480); };
+    const failsafe = setTimeout(() => end(), 6000);
+    loadCarModule()
+      .then(({ playIntro }) => playIntro($('#intro-stage'), carOpts(), { onTitle: () => el.classList.add('show') }))
+      .then((cleanup) => { clearTimeout(failsafe); setTimeout(() => end(cleanup), 150); })
+      .catch(() => { clearTimeout(failsafe); end(); });
+  }
+
   /* ---------- start ---------- */
   if (/setup=|connect=/.test(location.hash)) {
     const h = location.hash;
@@ -2224,6 +2240,7 @@
   I18N.setLang(state.settings.uiLang);
   resetForm();
   applyLang();
+  playOpening();
   flush().then(() => pull(true));
   startAccounts();
 

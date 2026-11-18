@@ -336,3 +336,133 @@ export function silhouette(body) {
   const d = `M${f(1)} ${f(gy)} ` + pts.map(([x, y]) => `L${f(x)} ${f(y)}`).join(' ') + ` L47 ${f(gy)} Z`;
   return { d, wheels: wheels.map(f), cy: f(base - r * sx), r: f(r * sx * 0.95) };
 }
+
+// ---------- Openingsanimatie: de auto rijdt het scherm in, remt, maakt een sprongetje en draait naar je toe ----------
+// playIntro(container, carOpts, { onTitle }) → Promise; tik = overslaan
+export function playIntro(container, opts = {}, { onTitle } = {}) {
+  return new Promise((resolve) => {
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight('#ffffff', '#b9c7d8', 1.7));
+    const key = new THREE.DirectionalLight('#fffaf0', 2.6); key.position.set(-2.5, 7, 4.5);
+    key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+    Object.assign(key.shadow.camera, { left: -12, right: 12, top: 6, bottom: -6, near: 1, far: 25 });
+    key.shadow.radius = 5; key.shadow.bias = -0.0008; key.shadow.normalBias = 0.02;
+    scene.add(key);
+    const fill = new THREE.DirectionalLight('#dfe8ff', 0.8); fill.position.set(4, 3, -3); scene.add(fill);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), new THREE.ShadowMaterial({ opacity: 0.25 }));
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+    // Weg: zachte witte strook met streepjes
+    const roadMat = new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, roughness: 1 });
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(60, 2.6), roadMat);
+    road.rotation.x = -Math.PI / 2; road.position.y = 0.002; road.receiveShadow = true; scene.add(road);
+    const dashMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9 });
+    const dashGeo = new THREE.PlaneGeometry(0.9, 0.12);
+    for (let x = -30; x < 30; x += 1.8) {
+      const dsh = new THREE.Mesh(dashGeo, dashMat); dsh.rotation.x = -Math.PI / 2; dsh.position.set(x, 0.004, 1.55); scene.add(dsh);
+    }
+
+    const car = buildCar(opts);
+    car.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    const body = new THREE.Group(); body.add(car); scene.add(body); // body = rijpositie, car = kantelen/springen
+    const L = car.userData.size.L;
+
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+    let halfW = 4;
+    function resize() {
+      const w = container.clientWidth || window.innerWidth, h = container.clientHeight || window.innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      // Afstand zo kiezen dat de auto ~60% van de breedte vult (ook op een smalle telefoon)
+      const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+      const dist = Math.max(7, (L * 0.85) / tanH);
+      camera.position.set(0, dist * 0.42 + 0.6, dist);
+      camera.lookAt(0, 0.55, 0);
+      camera.updateProjectionMatrix();
+      halfW = tanH * dist;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Stofwolkjes achter de auto
+    const puffGeo = new THREE.SphereGeometry(0.22, 14, 10);
+    const puffs = [];
+    const puff = (x, z) => {
+      const m = new THREE.Mesh(puffGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, roughness: 1 }));
+      m.position.set(x, 0.18, z); m.userData.t = 0; m.userData.vx = -0.6 - Math.random() * 0.8; m.userData.vy = 0.4 + Math.random() * 0.5;
+      scene.add(m); puffs.push(m);
+    };
+
+    const ease = {
+      outBack: (t, s = 1.4) => 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2),
+      inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+    };
+    const T_DRIVE = 1250, T_HOP = 1400, T_TURN = 1650, T_END = 2700;
+    let start = 0, raf = 0, lastPuff = 0, prevX = null, titled = false, done = false;
+
+    function finish() {
+      if (done) return; done = true;
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+      container.removeEventListener('pointerdown', finish);
+      resolve(() => {
+        scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map?.dispose(); o.material.dispose(); } });
+        renderer.dispose(); renderer.forceContextLoss?.(); renderer.domElement.remove();
+      });
+    }
+    container.addEventListener('pointerdown', finish);
+
+    function tick(now) {
+      if (!start) start = now;
+      const t = now - start;
+      const startX = -(halfW + L * 0.9);
+      // 1. Inrijden met een klein doorschietertje bij het remmen
+      const p = Math.min(1, t / T_DRIVE);
+      const x = startX + (0 - startX) * ease.outBack(p, 1.1);
+      body.position.x = x;
+      const speed = prevX == null ? 0 : (x - prevX); prevX = x;
+      // Hobbelen tijdens het rijden, neus omhoog bij optrekken, neus omlaag bij remmen (verend)
+      const moving = p < 1 ? 1 - p : 0;
+      car.position.y = Math.abs(Math.sin(t / 55)) * 0.035 * moving;
+      let pitch = 0.05 * Math.max(0, 1 - t / 350);
+      if (t > T_DRIVE * 0.62) { const k = (t - T_DRIVE * 0.62) / 1000; pitch -= 0.075 * Math.exp(-k * 6) * Math.cos(k * 22); }
+      // 2. Sprongetje met squash & stretch
+      let sy = 1;
+      if (t > T_HOP && t < T_HOP + 520) {
+        const h = (t - T_HOP) / 520;
+        car.position.y = Math.sin(h * Math.PI) * 0.45;
+        sy = h < 0.12 ? 1 - h * 0.8 : h > 0.88 ? 1 - (1 - h) * 0.8 : 1 + Math.sin(h * Math.PI) * 0.06;
+        pitch += Math.sin(h * Math.PI * 2) * 0.05;
+      } else if (t >= T_HOP + 520 && t < T_HOP + 760) {
+        const k = (t - T_HOP - 520) / 240; sy = 1 - Math.sin(k * Math.PI) * 0.07; // landing
+      }
+      car.scale.set(1 + (1 - sy) * 0.6, sy, 1 + (1 - sy) * 0.6);
+      car.rotation.z = pitch;
+      // 3. Naar je toe draaien
+      const r = Math.min(1, Math.max(0, (t - T_TURN) / 600));
+      body.rotation.y = -0.6 * ease.inOut(r);
+      if (!titled && t > T_HOP + 150) { titled = true; onTitle?.(); }
+      // Stofwolkjes zolang hij hard rijdt
+      if (Math.abs(speed) > 0.03 && t - lastPuff > 45) {
+        lastPuff = t; puff(x - L / 2 + 0.2, 0.55 + (Math.random() - 0.5) * 0.3); puff(x - L / 2 + 0.2, -0.55 + (Math.random() - 0.5) * 0.3);
+      }
+      for (let i = puffs.length - 1; i >= 0; i--) {
+        const m = puffs[i]; m.userData.t += 1 / 60;
+        const a = m.userData.t;
+        m.position.x += m.userData.vx / 60; m.position.y += m.userData.vy / 60;
+        m.scale.setScalar(0.6 + a * 2.4);
+        m.material.opacity = Math.max(0, 0.85 - a * 1.5);
+        if (m.material.opacity <= 0) { scene.remove(m); m.material.dispose(); puffs.splice(i, 1); }
+      }
+      renderer.render(scene, camera);
+      if (t >= T_END) return finish();
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+  });
+}

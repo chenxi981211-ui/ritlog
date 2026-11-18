@@ -618,3 +618,15 @@ h2 { font-weight: 600; letter-spacing: -.015em; }
 .chip.on .sil circle { stroke: var(--primary-soft); }
 #summary > .stats:first-child { margin-top: 0; }
 .car-name + .car-meta, .car-info .car-meta { margin-top: 2px; }
+
+/* ---------- Openingsanimatie ---------- */
+.intro { position: fixed; inset: 0; z-index: 100; background: var(--stage); transition: opacity .45s ease, transform .45s ease; }
+.intro.out { opacity: 0; transform: scale(1.06); pointer-events: none; }
+.intro-stage { position: absolute; inset: 0; }
+.intro-stage canvas { width: 100%; height: 100%; display: block; }
+.intro-title { position: absolute; left: 0; right: 0; top: calc(50% + 120px); display: flex; align-items: center; justify-content: center; gap: 12px;
+  opacity: 0; transform: translateY(16px) scale(.9); pointer-events: none; }
+.intro-title img { border-radius: 12px; box-shadow: 0 6px 18px rgba(10, 80, 45, .25); }
+.intro-title span { font-family: var(--font-display); font-weight: 800; font-size: 38px; letter-spacing: -.04em; color: var(--text); }
+.intro.show .intro-title { animation: intro-pop .55s cubic-bezier(.34, 1.56, .64, 1) forwards; }
+@keyframes intro-pop { to { opacity: 1; transform: none; } }
