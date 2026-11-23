@@ -86,16 +86,20 @@ def listing():
         for loc, t in CFG['locales'].items():
             attrs = {'subtitle': t['subtitle'], 'privacyPolicyUrl': CFG['privacyPolicyUrl']}
             if loc in have:
-                # Primary language keeps its current name; other languages may get their own name
-                if t.get('name') and loc != app['attributes'].get('primaryLocale'):
-                    r = call('PATCH', f'/v1/appInfoLocalizations/{have[loc]}', {'data': {'type': 'appInfoLocalizations', 'id': have[loc], 'attributes': {**attrs, 'name': t['name']}}}, ok_fail=True)
+                # Try the wished-for names in order (App Store names must be unique across all apps)
+                names = t.get('name') or []
+                names = [names] if isinstance(names, str) else names
+                done = False
+                for nm in names:
+                    r = call('PATCH', f'/v1/appInfoLocalizations/{have[loc]}', {'data': {'type': 'appInfoLocalizations', 'id': have[loc], 'attributes': {**attrs, 'name': nm}}}, ok_fail=True)
                     if '_error' not in r:
-                        print(f"   {loc} name: {t['name']}")
-                        continue
-                    print(f"   {loc} name '{t['name']}' not accepted: {r['_detail'][:200]}")
+                        print(f'   {loc} name: {nm}'); done = True; break
+                    print(f"   {loc} name '{nm}' not accepted: {r['_detail'][:160]}")
+                if done:
+                    continue
                 call('PATCH', f'/v1/appInfoLocalizations/{have[loc]}', {'data': {'type': 'appInfoLocalizations', 'id': have[loc], 'attributes': attrs}})
             else:
-                call('POST', '/v1/appInfoLocalizations', {'data': {'type': 'appInfoLocalizations', 'attributes': {'locale': loc, 'name': app['attributes']['name'], **attrs},
+                call('POST', '/v1/appInfoLocalizations', {'data': {'type': 'appInfoLocalizations', 'attributes': {'locale': loc, 'name': (t['name'][0] if isinstance(t.get('name'), list) else t.get('name')) or app['attributes']['name'], **attrs},
                                                                     'relationships': {'appInfo': rel('appInfos', INFO)}}})
     step('Name, subtitle, privacy policy (NL + EN)', app_info_texts)
 
@@ -184,6 +188,9 @@ def listing():
 
     def review():
         r = call('GET', f'/v1/appStoreVersions/{VER}/appStoreReviewDetail', ok_fail=True)
+        if r.get('data') and r['data']['attributes'].get('contactFirstName'):
+            call('PATCH', f"/v1/appStoreReviewDetails/{r['data']['id']}", {'data': {'type': 'appStoreReviewDetails', 'id': r['data']['id'], 'attributes': {'notes': CFG['reviewNotes'], 'demoAccountRequired': False}}})
+            return
         if not CFG.get('contactFirstName'):
             raise SystemExit('needs your name + phone as review contact: fill these in by hand (notes are in store/listing.md)')
         attrs = {'notes': CFG['reviewNotes'], 'demoAccountRequired': False, 'contactEmail': CFG['contactEmail'],
