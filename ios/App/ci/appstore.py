@@ -223,8 +223,7 @@ def listing():
         body = {'data': {'type': 'appAvailabilities', 'attributes': {'availableInNewTerritories': False},
                          'relationships': {'app': rel('apps', APP), 'territoryAvailabilities': {'data': [{'type': 'territoryAvailabilities', 'id': f'${{{t}}}'} for t in terr]}}},
                 'included': [{'type': 'territoryAvailabilities', 'id': f'${{{t}}}', 'attributes': {'available': t in want},
-                              'relationships': {'territory': rel('territories', t)}} for t in terr]
-                            + [{'type': 'territories', 'id': t} for t in terr]}
+                              'relationships': {'territory': rel('territories', t)}} for t in terr]}
         r = call('POST', '/v2/appAvailabilities', body, ok_fail=True)
         if '_error' in r:
             raise SystemExit(f"{r['_error']} {r['_detail'][:500]}")
