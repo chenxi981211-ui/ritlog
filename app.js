@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-18.1';
+  const APP_VERSION = '2026-11-23.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2241,6 +2241,17 @@
   resetForm();
   applyLang();
   playOpening();
+  // ?demo[&tab=summary&scroll=600]: open straight into the app with sample rides (handy for a quick look and screenshots)
+  {
+    const q = new URLSearchParams(location.search);
+    if (q.has('demo')) {
+      if (!hasDemo() && !state.trips.length) { loadDemo(); resetForm(); renderQuick(); }
+      if (q.has('shots')) document.body.classList.add('shots');
+      if (q.get('tab')) go(q.get('tab'));
+      if (q.get('car')) setTimeout(openCarDialog, 300);
+      if (q.get('scroll')) setTimeout(() => scrollTo(0, +q.get('scroll')), 600);
+    }
+  }
   flush().then(() => pull(true));
   startAccounts();
 
