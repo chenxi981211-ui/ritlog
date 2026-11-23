@@ -33,7 +33,7 @@ def call(method, path, body=None, ok_fail=False):
             raw = r.read()
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors='replace')[:700]
+        detail = ' '.join(e.read().decode(errors='replace').split())[:1500]
         if ok_fail:
             return {'_error': e.code, '_detail': detail}
         raise SystemExit(f'{method} {path} -> {e.code}: {detail}')
@@ -84,11 +84,11 @@ def listing():
     def app_info_texts():
         have = {l['attributes']['locale']: l['id'] for l in call('GET', f'/v1/appInfos/{INFO}/appInfoLocalizations')['data']}
         for loc, t in CFG['locales'].items():
-            attrs = {'name': t['name'], 'subtitle': t['subtitle'], 'privacyPolicyUrl': CFG['privacyPolicyUrl']}
+            attrs = {'subtitle': t['subtitle'], 'privacyPolicyUrl': CFG['privacyPolicyUrl']}
             if loc in have:
                 call('PATCH', f'/v1/appInfoLocalizations/{have[loc]}', {'data': {'type': 'appInfoLocalizations', 'id': have[loc], 'attributes': attrs}})
             else:
-                call('POST', '/v1/appInfoLocalizations', {'data': {'type': 'appInfoLocalizations', 'attributes': {'locale': loc, **attrs},
+                call('POST', '/v1/appInfoLocalizations', {'data': {'type': 'appInfoLocalizations', 'attributes': {'locale': loc, 'name': app['attributes']['name'], **attrs},
                                                                     'relationships': {'appInfo': rel('appInfos', INFO)}}})
     step('Name, subtitle, privacy policy (NL + EN)', app_info_texts)
 
@@ -102,7 +102,7 @@ def listing():
             if k in ('kidsAgeBand', 'ageRatingOverride', 'ageRatingOverrideV2', 'koreaAgeRatingOverride', 'developerAgeRatingInfoUrl'):
                 continue
             if isinstance(v, bool) or k in ('gambling', 'unrestrictedWebAccess', 'lootBox', 'messagingAndChat', 'parentalControls', 'ageAssurance',
-                                            'userGeneratedContent', 'advertising', 'healthOrWellnessTopics', 'seventeenPlus'):
+                                            'userGeneratedContent', 'advertising', 'healthOrWellnessTopics', 'seventeenPlus', 'datingAndRelationships'):
                 attrs[k] = False
             else:
                 attrs[k] = 'NONE'
@@ -166,7 +166,10 @@ def listing():
 
     def review():
         r = call('GET', f'/v1/appStoreVersions/{VER}/appStoreReviewDetail', ok_fail=True)
-        attrs = {'notes': CFG['reviewNotes'], 'demoAccountRequired': False, 'contactEmail': CFG['contactEmail']}
+        if not CFG.get('contactFirstName'):
+            raise SystemExit('needs your name + phone as review contact: fill these in by hand (notes are in store/listing.md)')
+        attrs = {'notes': CFG['reviewNotes'], 'demoAccountRequired': False, 'contactEmail': CFG['contactEmail'],
+                 'contactFirstName': CFG['contactFirstName'], 'contactLastName': CFG['contactLastName'], 'contactPhone': CFG['contactPhone']}
         if r.get('data'):
             call('PATCH', f"/v1/appStoreReviewDetails/{r['data']['id']}", {'data': {'type': 'appStoreReviewDetails', 'id': r['data']['id'], 'attributes': attrs}})
         else:
