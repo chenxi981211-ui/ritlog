@@ -380,7 +380,7 @@ body:has(#screen-new.active) { padding-bottom: 0; }
 .list-row .l-ico .ico { width: 19px; height: 19px; }
 .list-row .grow { min-width: 0; }
 .list-row strong { display: block; font-weight: 600; }
-.list-row small { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-row small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; margin-top: 1px; }
 .chev { width: 16px; height: 16px; color: var(--muted); }
 .place-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; cursor: pointer; }
 .place-item:last-child { border-bottom: 0; }
