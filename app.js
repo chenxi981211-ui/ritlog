@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-23.3';
+  const APP_VERSION = '2026-11-24.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2350,13 +2350,14 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const text = (CFG.about || {})[I18N.lang === 'en' ? 'en' : 'nl'] || '';
     $('#about-text').innerHTML = text.split(/\n\n+/).map((p) => `<p>${esc(p)}</p>`).join('');
     $('#about-sub').textContent = 'Ritlog · ' + APP_VERSION;
-    // Doneren via een externe link mag niet in de iPhone-app (App Store-regels), dus alleen op de website
     const coffee = $('#about-coffee');
-    coffee.classList.toggle('hidden', NATIVE || !CFG.coffeeUrl);
+    coffee.classList.toggle('hidden', !CFG.coffeeUrl);
     if (CFG.coffeeUrl) coffee.href = CFG.coffeeUrl;
     $('#about-dialog').showModal();
   });
   $('#help-web').addEventListener('click', () => openUrl(CFG.webUrl));
+  // In de app: in een browservenster openen (anders opent de link niets)
+  $('#about-coffee').addEventListener('click', (e) => { if (NATIVE && CFG.coffeeUrl) { e.preventDefault(); openUrl(CFG.coffeeUrl); } });
   $('#about-close').addEventListener('click', () => $('#about-dialog').close());
 
   /* ---------- Openingsanimatie (één keer per keer openen; tik om over te slaan) ---------- */
