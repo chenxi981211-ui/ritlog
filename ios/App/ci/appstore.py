@@ -9,7 +9,7 @@ Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH, BUNDLE_ID.
 Things the API cannot do (do these by hand in App Store Connect):
   App Privacy answers, EU trader status (DSA), review contact name + phone.
 """
-import glob, hashlib, json, os, sys, time, urllib.error, urllib.request
+import glob, hashlib, json, os, re, sys, time, urllib.error, urllib.request
 import jwt
 
 API = 'https://api.appstoreconnect.apple.com'
@@ -106,9 +106,16 @@ def listing():
                 attrs[k] = False
             else:
                 attrs[k] = 'NONE'
-        r = call('PATCH', f"/v1/ageRatingDeclarations/{decl['id']}", {'data': {'type': 'ageRatingDeclarations', 'id': decl['id'], 'attributes': attrs}}, ok_fail=True)
-        if '_error' in r:  # try again with only the classic fields if the newer ones are rejected
-            raise SystemExit(f"{r['_error']} {r['_detail'][:300]}")
+        # Apple adds new yes/no questions now and then: switch any field it says must be a boolean, and retry
+        for _ in range(25):
+            r = call('PATCH', f"/v1/ageRatingDeclarations/{decl['id']}", {'data': {'type': 'ageRatingDeclarations', 'id': decl['id'], 'attributes': attrs}}, ok_fail=True)
+            if '_error' not in r:
+                return
+            m = re.search(r"attribute '(\w+)'\. Expected a (\w+)", r['_detail'])
+            if not m:
+                raise SystemExit(f"{r['_error']} {r['_detail'][:400]}")
+            attrs[m.group(1)] = False if m.group(2) == 'BOOLEAN' else 'NONE'
+        raise SystemExit('age rating: too many retries')
     step('Age rating: 4+ (nothing objectionable)', age)
 
     step('Copyright', lambda: call('PATCH', f'/v1/appStoreVersions/{VER}', {'data': {'type': 'appStoreVersions', 'id': VER, 'attributes': {'copyright': CFG['copyright']}}}))
@@ -134,8 +141,12 @@ def listing():
             files = sorted(glob.glob(os.path.join(ROOT, 'store', 'screenshots', f"{t['screenshots']}-*.png")))
             sets = call('GET', f'/v1/appStoreVersionLocalizations/{vlocs[loc]}/appScreenshotSets')['data']
             st = next((s for s in sets if s['attributes']['screenshotDisplayType'] == 'APP_IPHONE_67'), None)
-            if st:  # replace what is there
-                for old in call('GET', f"/v1/appScreenshotSets/{st['id']}/appScreenshots")['data']:
+            if st:  # replace what is there (unless it is already complete)
+                existing = call('GET', f"/v1/appScreenshotSets/{st['id']}/appScreenshots")['data']
+                if len(existing) == len(files) and os.environ.get('REUPLOAD') != '1':
+                    print(f'   {loc}: screenshots already there')
+                    continue
+                for old in existing:
                     call('DELETE', f"/v1/appScreenshots/{old['id']}")
             else:
                 st = call('POST', '/v1/appScreenshotSets', {'data': {'type': 'appScreenshotSets', 'attributes': {'screenshotDisplayType': 'APP_IPHONE_67'},
@@ -190,14 +201,31 @@ def listing():
     step('Price: free', price)
 
     def availability():
-        terr = CFG['territories']
+        want = set(CFG['territories'])
+        cur = call('GET', f'/v1/apps/{APP}/appAvailabilityV2', ok_fail=True)
+        if cur.get('data'):
+            # Already exists (all countries on by default): switch each country on/off
+            url = f"/v2/appAvailabilities/{cur['data']['id']}/territoryAvailabilities?include=territory&limit=200"
+            changed = 0
+            while url:
+                page = call('GET', url)
+                for ta in page['data']:
+                    t = ta['relationships']['territory']['data']['id']
+                    on = t in want
+                    if ta['attributes'].get('available') != on:
+                        call('PATCH', f"/v1/territoryAvailabilities/{ta['id']}", {'data': {'type': 'territoryAvailabilities', 'id': ta['id'], 'attributes': {'available': on}}})
+                        changed += 1
+                url = page.get('links', {}).get('next')
+            print(f'   {changed} countries changed')
+            return
+        terr = sorted(want)
         body = {'data': {'type': 'appAvailabilities', 'attributes': {'availableInNewTerritories': False},
                          'relationships': {'app': rel('apps', APP), 'territoryAvailabilities': {'data': [{'type': 'territoryAvailabilities', 'id': f'${{{t}}}'} for t in terr]}}},
                 'included': [{'type': 'territoryAvailabilities', 'id': f'${{{t}}}', 'attributes': {'available': True},
                               'relationships': {'territory': rel('territories', t)}} for t in terr]}
         r = call('POST', '/v2/appAvailabilities', body, ok_fail=True)
         if '_error' in r:
-            raise SystemExit(f"{r['_error']} {r['_detail'][:300]}")
+            raise SystemExit(f"{r['_error']} {r['_detail'][:500]}")
     step(f"Available in {len(CFG['territories'])} EU/EEA countries", availability)
 
 
