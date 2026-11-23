@@ -99,7 +99,7 @@ def listing():
         decl = call('GET', f'/v1/appInfos/{INFO}/ageRatingDeclaration')['data']
         attrs = {}
         for k, v in decl['attributes'].items():
-            if k in ('kidsAgeBand', 'ageRatingOverride', 'ageRatingOverrideV2', 'koreaAgeRatingOverride', 'developerAgeRatingInfoUrl'):
+            if k == 'kidsAgeBand' or 'korea' in k.lower() or 'grac' in k.lower() or 'Override' in k or k.endswith('Url'):
                 continue
             if isinstance(v, bool) or k in ('gambling', 'unrestrictedWebAccess', 'lootBox', 'messagingAndChat', 'parentalControls', 'ageAssurance',
                                             'userGeneratedContent', 'advertising', 'healthOrWellnessTopics', 'seventeenPlus', 'datingAndRelationships'):
@@ -218,11 +218,13 @@ def listing():
                 url = page.get('links', {}).get('next')
             print(f'   {changed} countries changed')
             return
-        terr = sorted(want)
+        # Apple wants every country listed, each switched on or off
+        terr = [t['id'] for t in call('GET', '/v1/territories?limit=200')['data']]
         body = {'data': {'type': 'appAvailabilities', 'attributes': {'availableInNewTerritories': False},
                          'relationships': {'app': rel('apps', APP), 'territoryAvailabilities': {'data': [{'type': 'territoryAvailabilities', 'id': f'${{{t}}}'} for t in terr]}}},
-                'included': [{'type': 'territoryAvailabilities', 'id': f'${{{t}}}', 'attributes': {'available': True},
-                              'relationships': {'territory': rel('territories', t)}} for t in terr]}
+                'included': [{'type': 'territoryAvailabilities', 'id': f'${{{t}}}', 'attributes': {'available': t in want},
+                              'relationships': {'territory': rel('territories', t)}} for t in terr]
+                            + [{'type': 'territories', 'id': t} for t in terr]}
         r = call('POST', '/v2/appAvailabilities', body, ok_fail=True)
         if '_error' in r:
             raise SystemExit(f"{r['_error']} {r['_detail'][:500]}")
