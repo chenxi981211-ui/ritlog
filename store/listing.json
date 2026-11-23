@@ -9,11 +9,11 @@
       "screenshots": "nl"
     },
     "en-GB": {
-      "name": "Ritlog",
-      "subtitle": "Simple company car trip log",
-      "promotionalText": "Log a ride in two taps. Ritlog remembers your usual routes, tracks your private kilometres and keeps everything tidy in your own Google Sheet.",
-      "keywords": "mileage,trip log,company car,lease car,kilometres,business,private,odometer,reimbursement,logbook",
-      "description": "Ritlog makes keeping a trip log for your (company) car simple, and even a bit fun.\n\nLOG A RIDE IN SECONDS\n• Tap a suggested route, like Home → Work, and save\n• Distance is calculated for you and the odometer carries over\n• Business or private, with detour kilometres and a ride number per day\n\nALWAYS IN THE PICTURE\n• Total kilometres, reimbursement and your private balance (500 km a year)\n• Charts per week, month and weekday, busiest day and a year-end forecast\n• Make the summary your own: drag, remove or add tiles\n\nREADY FOR YOUR TAX RETURN\n• Trip log as a PDF: date, odometer, addresses and business or private for every ride, with totals\n• Export to Excel or Google Sheets, or import your existing rides from a CSV\n\nYOUR DATA, YOUR SHEET\n• Optionally connect your own Google Sheet: rides land there instantly\n• Sign in with Apple or Google to keep rides in sync across devices\n• Works offline; no ads, no tracking\n\nAND YOUR OWN CAR\n• Name your car and see it in 3D, in the right shape and colour\n\nLight and dark theme, Dutch and English.",
+      "name": "Ritlog – Lease Car Mileage NL",
+      "subtitle": "Dutch tax trip log, no GPS",
+      "promotionalText": "New to the Netherlands with a company car? Log every ride in two taps, stay under the 500 km private limit and export a tax-office-ready trip log.",
+      "keywords": "expat,netherlands,company,bijtelling,belastingdienst,500km,private,business,odometer,logbook,km",
+      "description": "Ritlog is a simple trip log for anyone driving a lease or company car in the Netherlands. Made for expats and everyone who prefers English, with a full Dutch version too.\n\nLOG A RIDE IN TWO TAPS\n• Tap a suggested route, like Home → Work, and save\n• Distance is calculated for you, the odometer carries over\n• Business or private, detour kilometres and a ride number per day\n• No GPS tracking in the background: no battery drain, no location history\n\nSTAY UNDER THE 500 KM PRIVATE LIMIT\n• See your private kilometres for the year at a glance\n• Drive no more than 500 private km a year and you avoid the bijtelling tax charge\n\nREADY FOR THE DUTCH TAX OFFICE\n• Export a trip log PDF with date, odometer, addresses and business or private for every ride, plus totals\n• Download for Excel or copy to Google Sheets\n• Import your existing rides from a CSV\n\nYOUR DATA, YOUR SHEET\n• Optionally connect your own Google Sheet: rides land there instantly\n• Sign in with Apple or Google to sync across devices, or use it without an account\n• Free, no ads, no tracking\n\nAND YOUR OWN CAR\n• Name your car and see it in 3D, in the right shape and colour\n\nEnglish and Dutch, light and dark theme. Ritlog is not tax advice.",
       "screenshots": "en"
     }
   },

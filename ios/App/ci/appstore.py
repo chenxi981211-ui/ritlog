@@ -86,6 +86,13 @@ def listing():
         for loc, t in CFG['locales'].items():
             attrs = {'subtitle': t['subtitle'], 'privacyPolicyUrl': CFG['privacyPolicyUrl']}
             if loc in have:
+                # Primary language keeps its current name; other languages may get their own name
+                if t.get('name') and loc != app['attributes'].get('primaryLocale'):
+                    r = call('PATCH', f'/v1/appInfoLocalizations/{have[loc]}', {'data': {'type': 'appInfoLocalizations', 'id': have[loc], 'attributes': {**attrs, 'name': t['name']}}}, ok_fail=True)
+                    if '_error' not in r:
+                        print(f"   {loc} name: {t['name']}")
+                        continue
+                    print(f"   {loc} name '{t['name']}' not accepted: {r['_detail'][:200]}")
                 call('PATCH', f'/v1/appInfoLocalizations/{have[loc]}', {'data': {'type': 'appInfoLocalizations', 'id': have[loc], 'attributes': attrs}})
             else:
                 call('POST', '/v1/appInfoLocalizations', {'data': {'type': 'appInfoLocalizations', 'attributes': {'locale': loc, 'name': app['attributes']['name'], **attrs},
