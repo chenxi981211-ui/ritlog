@@ -149,30 +149,33 @@ def listing():
         for loc, t in CFG['locales'].items():
             if loc not in vlocs:
                 continue
-            files = sorted(glob.glob(os.path.join(ROOT, 'store', 'screenshots', f"{t['screenshots']}-*.png")))
             sets = call('GET', f'/v1/appStoreVersionLocalizations/{vlocs[loc]}/appScreenshotSets')['data']
-            st = next((s for s in sets if s['attributes']['screenshotDisplayType'] == 'APP_IPHONE_67'), None)
-            if st:  # replace what is there (unless it is already complete)
-                existing = call('GET', f"/v1/appScreenshotSets/{st['id']}/appScreenshots")['data']
-                if len(existing) == len(files) and os.environ.get('REUPLOAD') != '1':
-                    print(f'   {loc}: screenshots already there')
-                    continue
-                for old in existing:
-                    call('DELETE', f"/v1/appScreenshots/{old['id']}")
-            else:
-                st = call('POST', '/v1/appScreenshotSets', {'data': {'type': 'appScreenshotSets', 'attributes': {'screenshotDisplayType': 'APP_IPHONE_67'},
-                                                                      'relationships': {'appStoreVersionLocalization': rel('appStoreVersionLocalizations', vlocs[loc])}}})['data']
-            for f in files:
-                data = open(f, 'rb').read()
-                shot = call('POST', '/v1/appScreenshots', {'data': {'type': 'appScreenshots', 'attributes': {'fileName': os.path.basename(f), 'fileSize': len(data)},
-                                                                     'relationships': {'appScreenshotSet': rel('appScreenshotSets', st['id'])}}})['data']
-                for op in shot['attributes']['uploadOperations']:
-                    chunk = data[op['offset']:op['offset'] + op['length']]
-                    req = urllib.request.Request(op['url'], method=op['method'], data=chunk, headers={h['name']: h['value'] for h in op['requestHeaders']})
-                    urllib.request.urlopen(req).read()
-                call('PATCH', f"/v1/appScreenshots/{shot['id']}", {'data': {'type': 'appScreenshots', 'id': shot['id'],
-                                                                            'attributes': {'uploaded': True, 'sourceFileChecksum': hashlib.md5(data).hexdigest()}}})
-            print(f'   {loc}: {len(files)} screenshots')
+            print(f"   {loc} existing sets: {', '.join(x['attributes']['screenshotDisplayType'] for x in sets) or '-'}")
+            # 6.9" (large display) + 6.3" (medium display, required by Apple)
+            for dtype, sub in (('APP_IPHONE_67', ''), ('APP_IPHONE_61', 'medium')):
+                files = sorted(glob.glob(os.path.join(ROOT, 'store', 'screenshots', sub, f"{t['screenshots']}-*.png")))
+                st = next((x for x in sets if x['attributes']['screenshotDisplayType'] == dtype), None)
+                if st:
+                    existing = call('GET', f"/v1/appScreenshotSets/{st['id']}/appScreenshots")['data']
+                    if len(existing) == len(files) and os.environ.get('REUPLOAD') != '1':
+                        print(f'   {loc} {dtype}: already there')
+                        continue
+                    for old in existing:
+                        call('DELETE', f"/v1/appScreenshots/{old['id']}")
+                else:
+                    st = call('POST', '/v1/appScreenshotSets', {'data': {'type': 'appScreenshotSets', 'attributes': {'screenshotDisplayType': dtype},
+                                                                          'relationships': {'appStoreVersionLocalization': rel('appStoreVersionLocalizations', vlocs[loc])}}})['data']
+                for f in files:
+                    data = open(f, 'rb').read()
+                    shot = call('POST', '/v1/appScreenshots', {'data': {'type': 'appScreenshots', 'attributes': {'fileName': os.path.basename(f), 'fileSize': len(data)},
+                                                                         'relationships': {'appScreenshotSet': rel('appScreenshotSets', st['id'])}}})['data']
+                    for op in shot['attributes']['uploadOperations']:
+                        chunk = data[op['offset']:op['offset'] + op['length']]
+                        req = urllib.request.Request(op['url'], method=op['method'], data=chunk, headers={h['name']: h['value'] for h in op['requestHeaders']})
+                        urllib.request.urlopen(req).read()
+                    call('PATCH', f"/v1/appScreenshots/{shot['id']}", {'data': {'type': 'appScreenshots', 'id': shot['id'],
+                                                                                'attributes': {'uploaded': True, 'sourceFileChecksum': hashlib.md5(data).hexdigest()}}})
+                print(f'   {loc} {dtype}: {len(files)} screenshots uploaded')
     step('Screenshots (6.9-inch iPhone, NL + EN)', screenshots)
 
     def build():
