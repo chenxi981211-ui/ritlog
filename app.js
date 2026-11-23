@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.3';
+  const APP_VERSION = '2026-11-24.4';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1385,7 +1385,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     $('#s-rate').value = String(s.rate).replace('.', ',');
     $('#s-type').value = s.defaultType; $('#s-driver').value = s.driver;
     renderCarRow(); renderAccount(); renderDemoBtn(); renderHelp();
-    $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
+    $('#app-version').textContent = tr('Ritlog') + ' ' + APP_VERSION;
     $('#s-odo').value = fmtOdo(latestOdo());
     $('#s-priv').value = privAllowance();
     const tabs = state.sheetTabs || [];
@@ -1649,6 +1649,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   function applyLang() {
     I18N.setLang(state.settings.uiLang);
     I18N.apply();
+    document.title = tr('Ritlog'); // Engelse naam: Tootle
     const en = I18N.lang === 'en';
     $('#lang-btn').textContent = en ? 'EN' : 'NL';
     $$('#lang-seg button').forEach((b) => b.classList.toggle('on', b.dataset.lang === I18N.lang));
@@ -2342,14 +2343,14 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const a = $('#help-mail');
     a.hidden = !mail;
     $('#help-web').hidden = !NATIVE || !CFG.webUrl; // alleen nuttig in de iPhone-app
-    a.href = `mailto:${mail}?subject=${encodeURIComponent('Ritlog ' + APP_VERSION)}`;
+    a.href = `mailto:${mail}?subject=${encodeURIComponent(tr('Ritlog') + ' ' + APP_VERSION)}`;
     $('#help-mail-sub').textContent = mail;
   }
   $('#help-faq').addEventListener('click', () => openUrl(CFG.supportUrl + (I18N.lang === 'en' ? '#en' : '')));
   $('#help-about').addEventListener('click', () => {
     const text = (CFG.about || {})[I18N.lang === 'en' ? 'en' : 'nl'] || '';
     $('#about-text').innerHTML = text.split(/\n\n+/).map((p) => `<p>${esc(p)}</p>`).join('');
-    $('#about-sub').textContent = 'Ritlog · ' + APP_VERSION;
+    $('#about-sub').textContent = tr('Ritlog') + ' · ' + APP_VERSION;
     const coffee = $('#about-coffee');
     coffee.classList.toggle('hidden', !CFG.coffeeUrl);
     if (CFG.coffeeUrl) coffee.href = CFG.coffeeUrl;

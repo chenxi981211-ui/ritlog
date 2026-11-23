@@ -1,3 +1,5 @@
+> The up-to-date store texts are in `store/listing.json` (English name: Tootle – Mileage Tracker, Dutch: Ritlog – Rittenregistratie). This file is the first draft.
+
 # Ritlog — App Store listing
 
 Copy each field into App Store Connect. Primary language: Dutch. Add English (U.K.) as a second localisation.

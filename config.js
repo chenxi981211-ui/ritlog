@@ -27,6 +27,6 @@ window.RITLOG_CONFIG = {
   coffeeUrl: 'https://buymeacoffee.com/xiichen', // Buy Me a Coffee-link (website én app)
   about: {
     nl: 'Mijn vriend rijdt elke dag met zijn leaseauto naar zijn werk en terug, en moet voor de Belastingdienst elke rit netjes bijhouden. Dat was elke keer weer gedoe: adressen opzoeken, kilometers uitrekenen, alles overtypen in een spreadsheet.\n\nOm dat probleem voor hem op te lossen, heb ik Ritlog zelf ontworpen en gebouwd. Nu logt hij een rit in een paar tikken, en hopelijk helpt het jou net zo goed.\n\nVragen, ideeën of iets dat niet goed werkt? Stuur me gerust een mailtje.',
-    en: 'My boyfriend drives his company car to work and back every day, and for the Dutch tax office he has to log every single ride. It was a chore every time: looking up addresses, working out kilometres, typing it all into a spreadsheet.\n\nTo solve that for him, I designed and built Ritlog myself. Now he logs a ride in a few taps, and I hope it helps you just as much.\n\nQuestions, ideas or something not working? Feel free to send me an email.',
+    en: 'My boyfriend drives his company car to work and back every day, and for the Dutch tax office he has to log every single ride. It was a chore every time: looking up addresses, working out kilometres, typing it all into a spreadsheet.\n\nTo solve that for him, I designed and built Tootle myself. Now he logs a ride in a few taps, and I hope it helps you just as much.\n\nQuestions, ideas or something not working? Feel free to send me an email.',
   },
 };
