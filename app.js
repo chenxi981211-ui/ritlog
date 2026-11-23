@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-23.1';
+  const APP_VERSION = '2026-11-23.2';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1260,7 +1260,7 @@
     $('#s-url').value = s.scriptUrl; $('#s-token').value = s.token;
     $('#s-rate').value = String(s.rate).replace('.', ',');
     $('#s-type').value = s.defaultType; $('#s-driver').value = s.driver;
-    renderCarRow(); renderAccount(); renderDemoBtn();
+    renderCarRow(); renderAccount(); renderDemoBtn(); renderHelp();
     $('#app-version').textContent = 'Ritlog ' + APP_VERSION;
     $('#s-odo').value = fmtOdo(latestOdo());
     $('#s-priv').value = privAllowance();
@@ -2142,7 +2142,7 @@
     const placeOf = {};
     DEMO_PLACES.forEach((p) => {
       let pl = p.role ? placeByRole(p.role) : state.places.find((x) => x.name === p.name);
-      if (!pl) { pl = { id: uid(), ...p, demo: true }; state.places.push(pl); }
+      if (!pl) { pl = { id: uid(), ...p, name: tr(p.name), demo: true }; state.places.push(pl); }
       placeOf[p.name] = pl.address;
     });
     const dist = (a, b) => DEMO_KM[`${a}|${b}`] || DEMO_KM[`${b}|${a}`] || [15, 20];
@@ -2154,7 +2154,7 @@
       const detour = rnd() < 0.08 ? Math.round((1 + rnd() * 3) * 10) / 10 : null;
       const priv = type === 'Privé';
       const t = {
-        id: 'demo-' + uid(), demo: true, date, tripNo: no, desc, km, fee: calcFee(km, type), type,
+        id: 'demo-' + uid(), demo: true, date, tripNo: no, desc: tr(desc), km, fee: calcFee(km, type), type,
         detourBiz: !priv && detour ? detour : null, detourPriv: priv && detour ? detour : null,
         from: placeOf[from], to: placeOf[to], car: state.settings.car || 'Toyota Aygo', plate: '', driver: '',
         odoStart: odo, odoEnd: (odo += Math.round(km + (detour || 0))), sync: 'local', cloudDirty: false,
@@ -2211,6 +2211,30 @@
   });
   renderDemoBtn();
 
+  /* ---------- Hulp & support ---------- */
+  const openUrl = (url) => (NATIVE && Plugins.Browser ? Plugins.Browser.open({ url }) : window.open(url, '_blank', 'noopener'));
+  function renderHelp() {
+    const mail = CFG.supportEmail || '';
+    const a = $('#help-mail');
+    a.hidden = !mail;
+    $('#help-web').hidden = !NATIVE || !CFG.webUrl; // alleen nuttig in de iPhone-app
+    a.href = `mailto:${mail}?subject=${encodeURIComponent('Ritlog ' + APP_VERSION)}`;
+    $('#help-mail-sub').textContent = mail;
+  }
+  $('#help-faq').addEventListener('click', () => openUrl(CFG.supportUrl + (I18N.lang === 'en' ? '#en' : '')));
+  $('#help-about').addEventListener('click', () => {
+    const text = (CFG.about || {})[I18N.lang === 'en' ? 'en' : 'nl'] || '';
+    $('#about-text').innerHTML = text.split(/\n\n+/).map((p) => `<p>${esc(p)}</p>`).join('');
+    $('#about-sub').textContent = 'Ritlog · ' + APP_VERSION;
+    // Doneren via een externe link mag niet in de iPhone-app (App Store-regels), dus alleen op de website
+    const coffee = $('#about-coffee');
+    coffee.classList.toggle('hidden', NATIVE || !CFG.coffeeUrl);
+    if (CFG.coffeeUrl) coffee.href = CFG.coffeeUrl;
+    $('#about-dialog').showModal();
+  });
+  $('#help-web').addEventListener('click', () => openUrl(CFG.webUrl));
+  $('#about-close').addEventListener('click', () => $('#about-dialog').close());
+
   /* ---------- Openingsanimatie (één keer per keer openen; tik om over te slaan) ---------- */
   function playOpening() {
     const el = $('#intro');
@@ -2241,6 +2265,8 @@
   resetForm();
   applyLang();
   playOpening();
+  // Apple-login werkt alleen in de iPhone-app (native); op de website alleen Google
+  if (!NATIVE) $$('[data-provider="apple"]').forEach((b) => { b.hidden = true; });
   // ?demo[&tab=summary&scroll=600]: open straight into the app with sample rides (handy for a quick look and screenshots)
   {
     const q = new URLSearchParams(location.search);

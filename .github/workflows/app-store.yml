@@ -1,0 +1,32 @@
+name: App Store listing
+
+# Handmatig starten: Actions → App Store listing → Run workflow
+#   listing = alles invullen in App Store Connect (verstuurt NIETS naar Apple-review)
+#   submit  = de klaargezette versie insturen voor review
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'listing of submit'
+        required: true
+        default: listing
+        type: choice
+        options: [listing, submit]
+
+jobs:
+  appstore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: App Store Connect bijwerken
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          BUNDLE_ID: io.github.chenxi981211.ritlog
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
+          export ASC_KEY_PATH="$RUNNER_TEMP/keys/AuthKey.p8"
+          python3 -m pip install --quiet pyjwt cryptography
+          python3 ios/App/ci/appstore.py "${{ inputs.action }}"

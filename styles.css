@@ -631,3 +631,12 @@ h2 { font-weight: 600; letter-spacing: -.015em; }
 .intro.show .intro-title { animation: intro-pop .55s cubic-bezier(.34, 1.56, .64, 1) forwards; }
 @keyframes intro-pop { to { opacity: 1; transform: none; } }
 .shots .demo-tag { display: none; }
+[hidden] { display: none !important; }
+
+/* Hulp & support */
+a.list-row { text-decoration: none; }
+.about-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.about-head img { border-radius: 14px; box-shadow: var(--shadow); }
+.about-head h2 { margin: 0 0 2px; }
+.about-text p { margin: 0 0 12px; line-height: 1.55; }
+.coffee-btn { display: flex; justify-content: center; background: #ffdd00; color: #1b1b1b; text-decoration: none; margin-top: 6px; }

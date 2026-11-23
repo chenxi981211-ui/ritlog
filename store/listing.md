@@ -87,7 +87,7 @@ Light and dark theme, Dutch and English.
 ## App Review information
 - **Sign-in required:** No. Reviewers can tap "Continue without an account" (Zonder account doorgaan).
 - **Notes for the reviewer:**
-  Ritlog is a trip log for company/lease cars. No account is needed: tap "Continue without an account" on the first screen. To see a full app quickly, go to Settings → Data → "Load sample rides". Sign in with Apple and Google are optional and only sync rides across devices. Account deletion: Settings → Account → Delete account.
+  Ritlog is a trip log for company/lease cars. No account is needed: tap "Continue without an account" on the first screen. To try it, tap a route tile on the first screen (or type two addresses), then "Save trip"; the Trips and Summary tabs fill up from there. Sign in with Apple and Google are optional and only sync rides across devices. Account deletion: Settings → Account → Delete account.
 
 ## App Privacy (the "nutrition label")
 Answer **Yes, we collect data**, then tick only:

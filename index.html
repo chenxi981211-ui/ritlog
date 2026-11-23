@@ -248,10 +248,34 @@
         <button type="button" class="btn small" id="s-save-defaults">Opslaan</button>
       </div>
 
+      <div class="section-label">Hulp &amp; support</div>
+      <div class="card list-card">
+        <a class="list-row" id="help-mail" href="mailto:">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7l8 6 8-6"/></svg></span>
+          <span class="grow"><strong>Stuur een e-mail</strong><small id="help-mail-sub" data-dyn></small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </a>
+        <button type="button" class="list-row" id="help-faq">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg></span>
+          <span class="grow"><strong>Veelgestelde vragen</strong><small>Koppelen, inloggen, account verwijderen</small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="list-row" id="help-web">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+          <span class="grow"><strong>Webversie openen</strong><small>Ritten invoeren op je computer, met hetzelfde account</small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="list-row" id="help-about">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></span>
+          <span class="grow"><strong>Over de maker</strong><small>Waarom Ritlog bestaat</small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+
       <div class="card">
         <h2>Gegevens</h2>
         <div class="stack">
-          <button type="button" class="btn ghost" id="demo-btn" data-dyn>Voorbeeldritten laden</button>
+          <button type="button" class="btn ghost" id="demo-btn" data-dyn hidden>Voorbeeldritten laden</button>
           <button type="button" class="btn ghost" id="backup-btn">Back-up downloaden (JSON)</button>
           <button type="button" class="btn ghost danger" id="reset-btn">Alles wissen op deze telefoon</button>
         </div>
@@ -325,6 +349,13 @@
       <button type="button" class="btn ghost" id="dash-reset">Standaard</button>
       <button type="button" class="btn primary" id="dash-done">Klaar</button>
     </div>
+  </dialog>
+
+  <dialog id="about-dialog">
+    <div class="about-head"><img src="icons/icon-192.png" alt="" width="56" height="56"><div><h2>Over de maker</h2><small class="hint" id="about-sub" data-dyn></small></div></div>
+    <div class="about-text" id="about-text" data-dyn></div>
+    <a class="btn coffee-btn hidden" id="about-coffee" target="_blank" rel="noopener">☕ Trakteer me op een koffie</a>
+    <div class="row gap dialog-actions"><button type="button" class="btn ghost" id="about-close">Sluiten</button></div>
   </dialog>
 
   <div class="toast hidden" id="toast" role="status" data-dyn></div>
