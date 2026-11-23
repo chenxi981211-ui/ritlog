@@ -640,3 +640,5 @@ a.list-row { text-decoration: none; }
 .about-head h2 { margin: 0 0 2px; }
 .about-text p { margin: 0 0 12px; line-height: 1.55; }
 .coffee-btn { display: flex; justify-content: center; background: #ffdd00; color: #1b1b1b; text-decoration: none; margin-top: 6px; }
+.io-list { margin: 10px -18px -10px; }
+.io-list .list-row { padding: 12px 18px; }

@@ -146,11 +146,30 @@
       </div>
       <div id="summary" data-dyn></div>
       <div class="card">
-        <h2>Exporteren</h2>
-        <p class="hint">Kolommen en volgorde zijn gelijk aan je Google Sheet.</p>
-        <div class="stack">
-          <button type="button" class="btn" id="export-csv">Download CSV (Excel)</button>
-          <button type="button" class="btn ghost" id="export-copy">Kopieer voor Google Sheets</button>
+        <h2 class="h-ico"><span class="s-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></span>Importeren &amp; exporteren</h2>
+        <p class="hint">Voor je belastingaangifte, Excel of Google Sheets. Geldt voor de periode die bovenaan is gekozen.</p>
+        <div class="io-list">
+          <button type="button" class="list-row" id="export-tax">
+            <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg></span>
+            <span class="grow"><strong>Belastingdienst (PDF)</strong><small>Rittenregistratie met totalen en kenteken</small></span>
+            <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button type="button" class="list-row" id="export-csv">
+            <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg></span>
+            <span class="grow"><strong>Excel (CSV)</strong><small>Alle kolommen, zoals je Google Sheet</small></span>
+            <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button type="button" class="list-row" id="export-copy">
+            <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></span>
+            <span class="grow"><strong>Google Sheets</strong><small>Kopieer en plak de ritten in je Sheet</small></span>
+            <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button type="button" class="list-row" id="import-btn">
+            <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>
+            <span class="grow"><strong>Importeren</strong><small>CSV uit Excel of Sheets, of een Ritlog-back-up</small></span>
+            <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <input type="file" id="import-file" accept=".csv,.txt,.json,text/csv,application/json" hidden>
         </div>
       </div>
     </section>

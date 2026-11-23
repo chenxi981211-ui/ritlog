@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-23.2';
+  const APP_VERSION = '2026-11-23.3';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1254,6 +1254,130 @@
     catch { toast(tr('Kopiëren lukte niet')); }
   });
 
+  /* ---------- Rittenregistratie voor de Belastingdienst (printbaar / PDF) ---------- */
+  function taxReportHtml() {
+    const key = $('#summary-month').value;
+    const trips = sortTrips(liveTrips().filter((t) => t.date.startsWith(key))).reverse();
+    const s = state.settings, sum = (f) => trips.reduce((a, t) => a + (f(t) || 0), 0);
+    const priv = (t) => t.type === 'Privé';
+    const bizKm = sum((t) => (priv(t) ? 0 : t.km)), privKm = sum((t) => (priv(t) ? t.km : 0));
+    const detB = sum((t) => t.detourBiz), detP = sum((t) => t.detourPriv);
+    const odos = trips.flatMap((t) => [t.odoStart, t.odoEnd]).filter(Boolean);
+    const period = key.length > 4 ? monthLabel(key) : tr('Heel {y}', { y: key });
+    const row = (k, v) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`;
+    const yearPriv = key.length === 4 ? privKm + detP : null;
+    return `<!doctype html><html lang="${I18N.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(tr('Rittenregistratie'))} ${esc(period)}</title><style>
+@page { size: A4 landscape; margin: 14mm; }
+body { font: 11px/1.45 -apple-system, "Inter", Arial, sans-serif; color: #141413; margin: 24px; }
+h1 { font-size: 22px; margin: 0 0 2px; } .muted { color: #6e6d68; }
+.grid { display: flex; gap: 28px; flex-wrap: wrap; margin: 16px 0; }
+.grid table th { text-align: left; color: #6e6d68; font-weight: 500; padding: 2px 14px 2px 0; }
+.grid table td { font-weight: 650; }
+table.rides { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.rides th { background: #eef6f1; text-align: left; padding: 6px; font-size: 10px; }
+.rides td { padding: 5px 6px; border-bottom: 1px solid #ebe9e4; vertical-align: top; }
+.rides td.n { text-align: right; white-space: nowrap; }
+.note { margin-top: 14px; font-size: 10px; color: #6e6d68; max-width: 900px; }
+.print { position: fixed; top: 16px; right: 16px; background: #0f9150; color: #fff; border: 0; border-radius: 999px; padding: 10px 18px; font-weight: 600; cursor: pointer; }
+@media print { .print { display: none; } body { margin: 0; } }
+</style></head><body>
+<button class="print" onclick="print()">${esc(tr('Afdrukken / PDF'))}</button>
+<h1>${esc(tr('Rittenregistratie'))} · ${esc(period)}</h1>
+<div class="muted">${esc(tr('Gemaakt met Ritlog op {d}', { d: new Date().toLocaleDateString(I18N.locale()) }))}</div>
+<div class="grid">
+<table>${row(tr('Auto'), esc(s.car || '–'))}${row(tr('Kenteken'), esc(s.plate || '–'))}${row(tr('Rijder'), esc(s.driver || '–'))}${row(tr('Periode'), esc(period))}</table>
+<table>${row(tr('Aantal ritten'), trips.length)}${row(tr('Zakelijke km'), fmtKm(bizKm) + ' km')}${row(tr('Privé km'), fmtKm(privKm) + ' km')}${row(tr('Omrijkilometers zakelijk / privé'), `${fmtKm(detB) || '0'} / ${fmtKm(detP) || '0'} km`)}</table>
+<table>${row(tr('Km-stand begin'), odos.length ? fmtOdo(Math.min(...odos)) : '–')}${row(tr('Km-stand eind'), odos.length ? fmtOdo(Math.max(...odos)) : '–')}${yearPriv != null ? row(tr('Privé-km dit jaar (max. {a})', { a: privAllowance() }), `${fmtKm(yearPriv)} km ${yearPriv <= privAllowance() ? '✓' : '⚠'}`) : ''}${row(tr('Vergoeding'), fmtEur(Math.round(bizKm * s.rate * 100) / 100))}</table>
+</div>
+<table class="rides"><thead><tr><th>${esc(tr('Datum'))}</th><th>${esc(tr('Rit'))}</th><th>${esc(tr('Begin km'))}</th><th>${esc(tr('Eind km'))}</th><th>${esc(tr('Vertrekadres'))}</th><th>${esc(tr('Aankomstadres'))}</th><th>${esc(tr('Km'))}</th><th>${esc(tr('Omrijden'))}</th><th>${esc(tr('Type'))}</th><th>${esc(tr('Omschrijving'))}</th></tr></thead><tbody>
+${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.tripNo || ''}</td><td class="n">${fmtOdo(t.odoStart)}</td><td class="n">${fmtOdo(t.odoEnd)}</td><td>${esc(t.from || '')}</td><td>${esc(t.to || '')}</td><td class="n">${fmtKm(t.km)}</td><td class="n">${fmtKm((t.detourBiz || 0) + (t.detourPriv || 0) || null)}</td><td>${esc(tr(t.type || ''))}</td><td>${esc(t.desc || '')}</td></tr>`).join('\n')}
+</tbody></table>
+<p class="note">${esc(tr('Per rit staan datum, begin- en eindstand van de km-teller, vertrek- en aankomstadres, de omgereden kilometers en of de rit zakelijk of privé was, zoals de Belastingdienst vraagt voor een sluitende rittenregistratie. Rijd je niet meer dan 500 km privé per kalenderjaar, dan hoef je geen bijtelling te betalen. Dit overzicht is geen belastingadvies.'))}</p>
+</body></html>`;
+  }
+  $('#export-tax').addEventListener('click', () => {
+    const key = $('#summary-month').value;
+    if (!liveTrips().some((t) => t.date.startsWith(key))) return toast(tr('Geen ritten in deze periode'));
+    const html = taxReportHtml();
+    if (NATIVE) return download(`rittenregistratie-${key}.html`, html, 'text/html'); // deelvenster → Afdrukken → PDF bewaren
+    const w = window.open('', '_blank');
+    if (!w) return download(`rittenregistratie-${key}.html`, html, 'text/html');
+    w.document.open(); w.document.write(html); w.document.close();
+  });
+
+  /* ---------- Importeren: CSV (Excel/Google Sheets) of een Ritlog-back-up ---------- */
+  function parseCsv(text) {
+    text = text.replace(/^﻿/, '');
+    const first = text.split(/\r?\n/)[0] || '';
+    const sep = ['\t', ';', ','].sort((a, b) => first.split(b).length - first.split(a).length)[0];
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; continue; }
+      if (c === '"') q = true;
+      else if (c === sep) { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += c;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter((r) => r.some((x) => x.trim()));
+  }
+  function tripsFromCsv(text) {
+    const rows = parseCsv(text);
+    const n = (x) => String(x).toLowerCase().replace(/\s+/g, ' ').trim();
+    const alias = { desc: ['omschrijving', 'description', 'beschrijving'], date: ['date', 'datum'], km: ['km', 'afstand', 'distance', 'kilometers'],
+      from: ['van', 'from', 'vertrek'], to: ['naar', 'to', 'aankomst', 'bestemming'], type: ['type', 'soort'], tripNo: ['rit', 'ritnummer', 'nr'] };
+    const hi = rows.findIndex((r) => r.some((h) => /datum|date/i.test(h)));
+    if (hi < 0) return [];
+    const head = rows[hi].map(n);
+    const col = {};
+    head.forEach((h, i) => {
+      const k = COLUMNS.find(([, name]) => h === n(name) || h.startsWith(n(name) + ' ') || h.startsWith(n(name) + '('))?.[0]
+        || Object.entries(alias).find(([, names]) => names.some((a) => h === a || h.startsWith(a + ' ') || h.startsWith(a + '(')))?.[0];
+      if (k && col[k] == null) col[k] = i;
+    });
+    const get = (r, k) => (col[k] != null ? (r[col[k]] || '').trim() : '');
+    const stamp = new Date().toISOString();
+    return rows.slice(hi + 1).map((r) => {
+      const date = parseSheetDate(get(r, 'date')), km = parseDec(get(r, 'km'));
+      if (!date || !km) return null;
+      const type = /priv/i.test(get(r, 'type')) ? 'Privé' : 'Zakelijk';
+      return { id: uid(), desc: get(r, 'desc'), date, tripNo: parseInt0(get(r, 'tripNo')), km, detourBiz: parseDec(get(r, 'detourBiz')), detourPriv: parseDec(get(r, 'detourPriv')),
+        odoStart: parseInt0(get(r, 'odoStart')), odoEnd: parseInt0(get(r, 'odoEnd')), fee: calcFee(km, type), from: get(r, 'from'), to: get(r, 'to'), type,
+        car: get(r, 'car') || state.settings.car, plate: get(r, 'plate') || state.settings.plate, driver: get(r, 'driver') || state.settings.driver,
+        created: stamp, modified: stamp, cloudDirty: true, sync: 'local' };
+    }).filter(Boolean);
+  }
+  $('#import-btn').addEventListener('click', () => $('#import-file').click());
+  $('#import-file').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    const text = await file.text();
+    let found = [];
+    try {
+      if (/^\s*[{[]/.test(text)) {
+        const data = JSON.parse(text);
+        found = (Array.isArray(data) ? data : data.trips || []).filter((t) => t && t.date && t.km && t.sync !== 'delete')
+          .map((t) => ({ ...t, id: t.id || uid(), demo: false, cloudDirty: true, sync: 'local' }));
+      } else found = tripsFromCsv(text);
+    } catch { found = []; }
+    if (!found.length) return toast(tr('Geen ritten gevonden in dit bestand'), 3500);
+    const key = (t) => `${t.date}|${Math.round((t.km || 0) * 10)}|${norm(t.from || '')}|${norm(t.to || '')}`;
+    const have = new Set(liveTrips().map(key)), ids = new Set(state.trips.map((t) => t.id));
+    const fresh = found.filter((t) => !have.has(key(t)) && !ids.has(t.id));
+    const dup = found.length - fresh.length;
+    if (!fresh.length) return toast(tr('Alle {n} ritten staan er al in', { n: found.length }), 3500);
+    if (!confirm(tr('{n} ritten toevoegen?', { n: fresh.length }) + (dup ? ' ' + tr('({d} dubbele overgeslagen)', { d: dup }) : ''))) return;
+    const toSheet = state.settings.scriptUrl && confirm(tr('Ook naar je Google Sheet sturen?'));
+    fresh.forEach((t) => { if (!t.tripNo) t.tripNo = nextTripNo(t.date); if (toSheet) t.sync = 'add'; else if (state.settings.scriptUrl) t.sync = 'synced'; });
+    state.trips.push(...fresh);
+    const maxOdo = Math.max(0, ...fresh.map((t) => t.odoEnd || 0));
+    if (maxOdo > (state.lastOdo || 0)) state.lastOdo = maxOdo;
+    save(); resetForm(); renderQuick(); renderSummary(); flush();
+    toast(tr('{n} ritten geïmporteerd', { n: fresh.length }), 3000);
+  });
+
   /* ---------- settings ---------- */
   function renderSettings() {
     const s = state.settings;
@@ -2276,6 +2400,7 @@
       if (q.get('tab')) go(q.get('tab'));
       if (q.get('car')) setTimeout(openCarDialog, 300);
       if (q.get('scroll')) setTimeout(() => scrollTo(0, +q.get('scroll')), 600);
+      if (q.get('to')) setTimeout(() => document.getElementById(q.get('to'))?.scrollIntoView({ block: 'center' }), 700);
     }
   }
   flush().then(() => pull(true));

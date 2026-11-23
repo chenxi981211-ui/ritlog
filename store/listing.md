@@ -37,6 +37,10 @@ ALTIJD OVERZICHT
 • Grafieken per week, maand en weekdag, drukste dag en verwachting voor het jaar
 • Pas je overzicht zelf aan: tegels verslepen, weghalen of toevoegen
 
+KLAAR VOOR DE BELASTINGDIENST
+• Rittenregistratie als PDF: per rit datum, km-stand, adressen en zakelijk of privé, met totalen
+• Exporteer naar Excel of Google Sheets, of importeer je bestaande ritten uit een CSV
+
 JOUW GEGEVENS, JOUW SHEET
 • Koppel optioneel je eigen Google Sheet: ritten komen er direct in te staan
 • Inloggen met Apple of Google houdt je ritten gelijk op al je apparaten
@@ -71,6 +75,10 @@ ALWAYS IN THE PICTURE
 • Total kilometres, reimbursement and your private balance (500 km a year)
 • Charts per week, month and weekday, busiest day and a year-end forecast
 • Make the summary your own: drag, remove or add tiles
+
+READY FOR YOUR TAX RETURN
+• Trip log as a PDF: date, odometer, addresses and business or private for every ride, with totals
+• Export to Excel or Google Sheets, or import your existing rides from a CSV
 
 YOUR DATA, YOUR SHEET
 • Optionally connect your own Google Sheet: rides land there instantly
