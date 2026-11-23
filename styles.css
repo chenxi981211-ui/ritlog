@@ -256,10 +256,13 @@ details.more summary { color: var(--primary); font-weight: 600; font-size: 14px;
 
 .save-bar {
   /* Loopt door tot de onderkant (achter de tabbalk), zodat er geen formulier tussen knop en tabbalk doorschemert */
-  position: sticky; bottom: 0; z-index: 4;
-  margin: 0 -16px; padding: 22px 16px calc(98px + env(safe-area-inset-bottom));
+  /* Altijd vast onderin beeld (sticky lukte niet zolang het formulier nog onder de vouw begon) */
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 4;
+  padding: 22px max(16px, calc((100% - 528px) / 2)) calc(98px + env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, transparent 0, var(--bg) 20px);
 }
+/* Ruimte onder het formulier zodat de laatste velden niet achter de knop verdwijnen */
+#screen-new { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
 body:has(#screen-new.active) { padding-bottom: 0; }
 .save-summary { font-size: 13px; color: var(--muted); margin-bottom: 8px; text-align: center; min-height: 18px; }
 
