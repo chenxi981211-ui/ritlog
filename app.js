@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.12';
+  const APP_VERSION = '2026-11-24.13';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -185,21 +185,51 @@
   // Photon-resultaat → leesbaar adres ("Alexanderplatz, Berlin, Germany"); Nederland zonder landnaam
   function photonLabel(p) {
     const street = p.street ? [p.street, p.housenumber].filter(Boolean).join(' ') : '';
-    const head = p.name && p.name !== p.street ? p.name : street || p.name;
     const city = p.city || p.town || p.village || p.county || p.state;
+    // Een station heet in OSM vaak gewoon naar de plaats ("Delft"): maak er "Station Delft" van
+    const name = p.osm_key === 'railway' && p.name && p.name === city ? `${tr('Station')} ${p.name}` : p.name;
+    const head = name && name !== p.street ? name : street || name;
     const parts = [head, head === street ? '' : street, city !== head ? city : '', p.countrycode === 'NL' ? '' : p.country];
     return [...new Set(parts.filter(Boolean))].join(', ');
   }
-  async function photonSearch(q, limit) {
+  async function photonSearch(q, limit, near = null) {
     const home = placeByRole('home');
-    const bias = home?.lat ? `&lat=${home.lat}&lon=${home.lon}` : '';
+    const p = near?.lat ? near : home?.lat ? home : null;
+    const bias = p ? `&lat=${p.lat}&lon=${p.lon}` : '';
     const data = await fetchJSON(`${PHOTON}/api/?limit=${limit}&lang=${I18N.lang === 'en' ? 'en' : 'default'}${bias}&q=${encodeURIComponent(q)}`, {}, 6000);
-    return (data.features || []).map((f) => ({ label: photonLabel(f.properties), cc: f.properties.countrycode, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }))
-      .filter((h) => h.label);
+    return (data.features || []).map((f) => {
+      const p = f.properties;
+      // Plek met een eigen naam (station, winkel, universiteit…) in plaats van een kaal adres of straat
+      const tag = `${p.osm_key}:${p.osm_value}`;
+      const noise = PHOTON_NOISE.test(tag);
+      const poi = !!p.name && p.name !== p.street && p.type === 'house' && !noise;
+      return { label: photonLabel(p), cc: p.countrycode, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], poi, noise,
+        key: poi ? norm(`${p.name}|${p.city || p.town || p.village || ''}`) : null, rank: PHOTON_TOP.test(tag) ? 0 : 1 };
+    }).filter((h) => h.label && !h.noise);
   }
+  // Ruis rond een plek (haltes, taxistandplaatsen, perrons, knooppunten) en wat bovenaan hoort (stations, vliegvelden)
+  const PHOTON_NOISE = /^(highway:|railway:(platform|tram_stop|stop|subway_entrance)|amenity:(taxi|bicycle_parking|parking_entrance)|public_transport:|building:yes)/;
+  const PHOTON_TOP = /^(railway:(station|halt)|aeroway:(aerodrome|terminal)|amenity:(university|hospital|townhall)|shop:)/;
   async function pdokGeocode(addr) {
     const data = await fetchJSON(`${PDOK}/free?rows=1&q=${encodeURIComponent(addr)}`);
-    return pdokPoint(data.response?.docs?.[0]);
+    const pt = pdokPoint(data.response?.docs?.[0]);
+    return pt && { ...pt, cc: 'NL' };
+  }
+  // Land van het toestel als er nog geen adres is: tijdzone → land (geen IP-opzoeking nodig)
+  const TZ_CC = { Amsterdam: 'NL', Brussels: 'BE', Berlin: 'DE', Paris: 'FR', Luxembourg: 'LU', Vienna: 'AT', Zurich: 'CH', Rome: 'IT', Madrid: 'ES',
+    Lisbon: 'PT', Copenhagen: 'DK', Stockholm: 'SE', Oslo: 'NO', Helsinki: 'FI', Dublin: 'IE', London: 'GB', Warsaw: 'PL', Prague: 'CZ', Budapest: 'HU' };
+  const deviceCC = () => { try { return TZ_CC[Intl.DateTimeFormat().resolvedOptions().timeZone.split('/')[1]] || null; } catch { return null; } };
+  // Waar zoekt iemand waarschijnlijk? Bij "Naar": rond het vertrekadres. Anders thuis, dan het land van het toestel.
+  async function suggestNear(otherAddr) {
+    if (otherAddr) {
+      const place = placeByAddress(otherAddr);
+      if (place?.lat) return { lat: place.lat, lon: place.lon, cc: geoCache[norm(otherAddr)]?.cc || null };
+      const pt = await geocode(otherAddr).catch(() => null);
+      if (pt) return pt;
+    }
+    const home = placeByRole('home');
+    if (home?.lat) return { lat: home.lat, lon: home.lon, cc: geoCache[norm(home.address)]?.cc || null };
+    return { cc: deviceCC() };
   }
   async function geocode(addr) {
     const key = norm(addr);
@@ -208,12 +238,13 @@
     if (place?.lat) return (geoCache[key] = { lat: place.lat, lon: place.lon });
     let pt = null;
     if (pdokLabels.has(key) || NL_POSTCODE.test(addr)) pt = await pdokGeocode(addr);
+    if (pt && !pt.cc && (pdokLabels.has(key) || NL_POSTCODE.test(addr))) pt.cc = 'NL';
     else {
       // Vrije tekst: eerst kijken in welk land het ligt. PDOK geeft voor buitenlandse adressen
       // soms een Nederlandse plek met een lijkende naam, dus alleen PDOK gebruiken voor Nederland.
       const hit = (await photonSearch(addr, 1).catch(() => []))[0];
-      if (hit && hit.cc !== 'NL') pt = { lat: hit.lat, lon: hit.lon };
-      else pt = (await pdokGeocode(addr).catch(() => null)) || (hit && { lat: hit.lat, lon: hit.lon });
+      if (hit && hit.cc !== 'NL') pt = { lat: hit.lat, lon: hit.lon, cc: hit.cc };
+      else pt = (await pdokGeocode(addr).catch(() => null)) || (hit && { lat: hit.lat, lon: hit.lon, cc: hit.cc });
     }
     if (!pt) throw new Error(tr('Adres niet gevonden: {a}', { a: addr }));
     return (geoCache[key] = pt);
@@ -228,20 +259,35 @@
   const tidyAddress = (s) => String(s || '').replace(/,?\s*\d{4}\s?[A-Z]{2}\b/, ',').replace(/,\s*,/g, ',').replace(/\s+,/g, ',').replace(/,\s*/g, ', ').trim();
 
   // Suggesties: Nederlandse adressen uit PDOK (huisnummer-precies), de rest van de wereld uit Photon
-  async function suggestAddresses(q) {
+  async function suggestAddresses(q, otherAddr = '') {
+    const near = await suggestNear(otherAddr).catch(() => ({}));
     const [nl, world] = await Promise.all([
-      fetchJSON(`${PDOK}/suggest?rows=5&fq=type:(adres OR weg OR woonplaats OR postcode)&q=${encodeURIComponent(q)}`, {}, 6000)
+      fetchJSON(`${PDOK}/suggest?rows=5&fq=type:(adres OR weg OR woonplaats OR postcode)${near?.lat ? `&lat=${near.lat}&lon=${near.lon}` : ''}&q=${encodeURIComponent(q)}`, {}, 6000)
         .then((d) => (d.response?.docs || []).map((x) => tidyAddress(x.weergavenaam))).catch(() => []),
-      NL_POSTCODE.test(q) ? [] : photonSearch(q, 6).catch(() => []),
+      NL_POSTCODE.test(q) ? [] : photonSearch(q, 15, near).catch(() => []),
     ]);
     nl.forEach((a) => pdokLabels.add(norm(a)));
-    const abroad = world.filter((h) => h.cc !== 'NL');
-    abroad.forEach((h) => { geoCache[norm(h.label)] = { lat: h.lat, lon: h.lon }; });
-    // Wijst de beste wereldwijde treffer naar het buitenland, dan die eerst
-    const abroadFirst = world[0] && world[0].cc !== 'NL';
-    const a = abroad.map((h) => h.label), n = nl;
-    const merged = abroadFirst ? [...a.slice(0, 4), ...n.slice(0, 3)] : [...n.slice(0, 4), ...a.slice(0, 3)];
-    return [...new Set(merged)];
+    world.forEach((h) => { geoCache[norm(h.label)] ||= { lat: h.lat, lon: h.lon, cc: h.cc }; });
+    // Plekken met een naam (ook in NL, dat PDOK niet kent): per naam+plaats één keer, stations e.d. eerst
+    const seenPoi = new Set();
+    const pois = world.filter((h) => h.poi && (!near?.cc || h.cc === near.cc) && !seenPoi.has(h.key) && seenPoi.add(h.key))
+      .sort((a, b) => a.rank - b.rank).map((h) => h.label);
+    const abroad = world.filter((h) => h.cc !== 'NL' && !h.poi);
+    // Hetzelfde land als het vertrekadres (of thuis/toestel) eerst. Zonder land: de beste wereldwijde treffer bepaalt.
+    const cc = near?.cc || null;
+    const sameAbroad = cc && cc !== 'NL' ? abroad.filter((h) => h.cc === cc) : [];
+    const otherAbroad = abroad.filter((h) => !sameAbroad.includes(h));
+    let merged;
+    if (cc === 'NL') merged = [...nl.slice(0, 5), ...otherAbroad.map((h) => h.label).slice(0, 2)];
+    else if (cc) merged = [...sameAbroad.map((h) => h.label).slice(0, 5), ...nl.slice(0, 2), ...otherAbroad.map((h) => h.label).slice(0, 2)];
+    else {
+      const abroadFirst = world[0] && world[0].cc !== 'NL';
+      const a = abroad.map((h) => h.label);
+      merged = abroadFirst ? [...a.slice(0, 4), ...nl.slice(0, 3)] : [...nl.slice(0, 4), ...a.slice(0, 3)];
+    }
+    // Zonder huisnummer zoekt iemand vaak een plek ("Delft station", "IKEA"): die eerst, anders achteraan
+    const withPois = /\d/.test(q) ? [...merged.slice(0, 5), ...pois.slice(0, 2)] : [...pois.slice(0, 3), ...merged];
+    return [...new Set(withPois)].slice(0, 7);
   }
   async function reverseGeocode(lat, lon) {
     const near = state.places.find((p) => p.lat && haversine(lat, lon, p.lat, p.lon) < 0.15);
@@ -276,6 +322,7 @@
 
   /* ---------- navigation ---------- */
   function go(name) {
+    if (name !== 'new' && editingId) resetForm(); // bewerken verlaten zonder opslaan = wijzigingen vervallen
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
     $$('#tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.go === name));
     $('#screen-title').textContent = tr($('#screen-' + name).dataset.title);
@@ -287,6 +334,15 @@
   document.addEventListener('click', (e) => {
     const g = e.target.closest('[data-go]');
     if (g) go(g.dataset.go);
+  });
+  // Elk venster: sluiten met een kruisje rechtsboven (geen aparte Annuleren-knop)
+  $$('dialog').forEach((d) => {
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'dialog-x';
+    x.setAttribute('aria-label', tr('Sluiten'));
+    x.innerHTML = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    x.addEventListener('click', () => d.close());
+    d.prepend(x);
   });
 
   /* ---------- trip form ---------- */
@@ -396,7 +452,6 @@
     $('#km-hint').textContent = '';
     $('#save-btn').textContent = tr('Rit opslaan');
     $('#delete-btn').classList.add('hidden');
-    $('#cancel-edit-btn').classList.add('hidden');
     $('#repeat-btn').classList.add('hidden');
     Object.entries(prefill).forEach(([k, v]) => { if (F(k) && v != null) F(k).value = v; });
     if (prefill.type) setType(prefill.type);
@@ -421,7 +476,6 @@
       setTripNo(t.tripNo || nextTripNo(t.date, t.id));
       $('#save-btn').textContent = tr('Wijziging opslaan');
       $('#delete-btn').classList.remove('hidden');
-      $('#cancel-edit-btn').classList.remove('hidden');
       $('#repeat-btn').classList.remove('hidden');
     } else {
       autoTripNo();
@@ -496,7 +550,6 @@
     save(); resetForm(); flush(); go('trips');
     toast(tr('Rit verwijderd'));
   });
-  $('#cancel-edit-btn').addEventListener('click', () => { resetForm(); go('trips'); });
   $('#repeat-btn').addEventListener('click', () => {
     const t = state.trips.find((x) => x.id === editingId);
     if (t) { fillFromTrip(t, false); toast(tr('Zelfde rit voor vandaag klaargezet')); }
@@ -537,7 +590,11 @@
     clearTimeout(suggestTimer);
     if (q.length >= 3 && navigator.onLine) {
       suggestTimer = setTimeout(async () => {
-        try { const hits = await suggestAddresses(q); if (input.value.trim() === q) render(hits); } catch { /* offline */ }
+        try {
+          const other = F(field === 'to' ? 'from' : 'to').value.trim();
+          const hits = await suggestAddresses(q, other);
+          if (input.value.trim() === q) render(hits);
+        } catch { /* offline */ }
       }, 250);
     }
   }
@@ -1273,7 +1330,6 @@
   $('#c-colors').addEventListener('click', (e) => { const b = e.target.closest('[data-color]'); if (!b) return; draft.carColor = b.dataset.color; renderCarPickers(); updatePreview(); });
   $('#c-body').addEventListener('click', (e) => { const b = e.target.closest('[data-body]'); if (!b) return; draft.carBody = b.dataset.body; renderCarPickers(); updatePreview(); });
   $('#c-model').addEventListener('input', () => { renderCarPickers(); updatePreview(); });
-  $('#c-cancel').addEventListener('click', () => $('#car-dialog').close());
   $('#car-dialog').addEventListener('close', () => { previewView?.destroy(); previewView = null; });
   $('#car-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1545,7 +1601,6 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   }
   $('#add-place').addEventListener('click', () => openPlace(null));
   $('#place-list').addEventListener('click', (e) => { const b = e.target.closest('[data-pid]'); if (b) openPlace(state.places.find((p) => p.id === b.dataset.pid)); });
-  $('#p-cancel').addEventListener('click', () => dlg.close());
   $('#p-delete').addEventListener('click', () => {
     state.places = state.places.filter((p) => p.id !== pf.elements.id.value);
     save(); dlg.close(); renderSettings(); renderQuick();
@@ -2242,7 +2297,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
           if (q.length < 3) { box.classList.add('hidden'); return; }
           t = setTimeout(async () => {
             try {
-              const hits = await suggestAddresses(q);
+              const hits = await suggestAddresses(q, role === 'work' ? onb.home : onb.work);
               if (input.value.trim() !== q) return;
               box.innerHTML = hits.map((h) => `<button type="button" data-v="${esc(h)}">${esc(h)}</button>`).join('');
               box.classList.toggle('hidden', !hits.length);
@@ -2524,7 +2579,6 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   $('#help-web').addEventListener('click', () => openUrl(CFG.webUrl));
   // In de app: in een browservenster openen (anders opent de link niets)
   $('#about-coffee').addEventListener('click', (e) => { if (NATIVE && CFG.coffeeUrl) { e.preventDefault(); openUrl(CFG.coffeeUrl); } });
-  $('#about-close').addEventListener('click', () => $('#about-dialog').close());
 
   /* ---------- Openingsanimatie (één keer per keer openen; tik om over te slaan) ---------- */
   function playOpening() {
