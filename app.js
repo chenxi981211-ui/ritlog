@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.11';
+  const APP_VERSION = '2026-11-24.12';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1803,6 +1803,11 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   const SB = window.supabase && CFG.supabaseUrl
     ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, flowType: 'pkce', detectSessionInUrl: !NATIVE, storageKey: 'ritlog.auth' } })
     : null;
+  // Alleen voor Google in de app: impliciete flow (sessie komt direct terug in de link). PKCE ging mis als het
+  // inlogvenster twee keer laadde ("invalid flow state"). Bewaart zelf niets; de sessie gaat naar SB.
+  const SB_OAUTH = window.supabase && CFG.supabaseUrl && NATIVE
+    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, flowType: 'implicit', detectSessionInUrl: false, storageKey: 'ritlog.oauth' } })
+    : null;
   let session = null, cloudBusy = false, cloudTimer = 0, applyingCloud = false;
   state.cloud ||= {};
   const num = (v) => (v == null || v === '' ? null : Number(v));
@@ -1842,6 +1847,19 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     if (Array.isArray(s.places)) state.places = s.places.map((p) => ({ aliases: [], role: '', ...p, id: p.id || uid() }));
     if (s.lastOdo) state.lastOdo = Math.max(s.lastOdo, state.lastOdo || 0);
   }
+  // Eerste sync na inloggen: wat al in het account staat wint. Plekken van dit apparaat die het account
+  // nog niet kent (zelfde adres of zelfde rol thuis/werk) komen erbij, zodat niets verloren gaat.
+  function adoptAccountSettings(cloud) {
+    const localPlaces = state.places;
+    applyCloudSettings(cloud);
+    const have = new Set(state.places.map((p) => norm(p.address)));
+    const roles = new Set(state.places.map((p) => p.role).filter(Boolean));
+    localPlaces.forEach((p) => {
+      if (have.has(norm(p.address))) return;
+      state.places.push(roles.has(p.role) ? { ...p, role: '' } : p);
+      have.add(norm(p.address));
+    });
+  }
   async function cloudSync() {
     if (!SB || !session || cloudBusy || !navigator.onLine) return;
     cloudBusy = true; renderAccount();
@@ -1850,6 +1868,18 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       // 1. Instellingen: nieuwere versie van een ander apparaat overnemen, eigen wijziging uploaden
       const { data: prof, error: pe } = await SB.from('profiles').select('settings, updated_at').eq('id', uidNow).maybeSingle();
       if (pe) throw pe;
+      if (state.cloud.adopt) {
+        // Net ingelogd: bestaat het account al, dan nemen we die instellingen over (plus nieuwe plekken)
+        if (prof?.settings?.settings) {
+          applyingCloud = true; adoptAccountSettings(prof.settings); applyingCloud = false;
+          state.cloud.settingsAt = prof.updated_at;
+          // Kwamen er plekken bij, dan gaat de samengevoegde versie hieronder omhoog
+          state.cloud.settingsHash = JSON.stringify({ ...cloudSettings(), places: prof.settings.places || [] });
+        }
+        delete state.cloud.adopt;
+        applyingCloud = true; save(); applyingCloud = false;
+        resetForm(); renderQuick(); applyLang();
+      }
       const mine = JSON.stringify(cloudSettings());
       const localChanged = mine !== state.cloud.settingsHash;
       if (prof && prof.updated_at !== state.cloud.settingsAt && !localChanged && prof.settings?.settings) {
@@ -1920,16 +1950,20 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       state.cloud = {};
     }
     if (state.cloud.userId !== s.user.id) {
-      state.cloud = { userId: s.user.id };
+      // Nieuw op dit apparaat: ritten van dit apparaat gaan erbij (bestaande ritten in het account blijven),
+      // instellingen van het account winnen. Dat regelt de eerste cloudSync (adopt), ook als het netwerk
+      // nu even wegvalt; zo kunnen lege lokale instellingen het account nooit overschrijven.
+      state.cloud = { userId: s.user.id, adopt: true };
       state.trips.forEach((t) => { if (t.sync !== 'delete' && !t.demo) t.cloudDirty = true; });
-      // Bestaat het account al met instellingen, dan winnen die; anders uploaden we de lokale
-      const { data: prof } = await SB.from('profiles').select('settings, updated_at').eq('id', s.user.id).maybeSingle();
-      if (prof?.settings?.settings) { applyCloudSettings(prof.settings); state.cloud.settingsAt = prof.updated_at; state.cloud.settingsHash = JSON.stringify(cloudSettings()); }
       applyingCloud = true; save(); applyingCloud = false;
     }
+    // Eerst het account binnenhalen, dan pas het inlogscherm sluiten (anders zou een bestaand account
+    // op een nieuw toestel de onboarding te zien krijgen)
+    const fresh = !!state.cloud.adopt;
+    if (fresh) await cloudSync();
     hideAuth();
     resetForm(); applyLang(); renderSyncPill();
-    cloudSync();
+    if (!fresh) cloudSync();
   }
 
   /* ---------- Inlogscherm: Apple en Google (geen e-mail nodig) ---------- */
@@ -1967,8 +2001,11 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       return;
     }
     if (NATIVE) {
-      // Google in de app: inlogpagina in een veilig browservenster, daarna terug naar de app
-      const { data, error } = await SB.auth.signInWithOAuth({ provider, options: { redirectTo: APP_RETURN, skipBrowserRedirect: true } });
+      // Google in de app: inlogpagina in een veilig browservenster, daarna terug naar de app.
+      // Niet twee vensters tegelijk openen (dubbel tikken).
+      if (Date.now() - oauthOpenedAt < 4000) return;
+      oauthOpenedAt = Date.now();
+      const { data, error } = await (SB_OAUTH || SB).auth.signInWithOAuth({ provider, options: { redirectTo: APP_RETURN, skipBrowserRedirect: true } });
       if (error) throw error;
       await Plugins.Browser.open({ url: data.url, presentationStyle: 'popover' });
       return;
@@ -1976,16 +2013,23 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const { error } = await SB.auth.signInWithOAuth({ provider, options: { redirectTo: WEB_RETURN } });
     if (error) throw error;
   }
-  // Terugkeer in de app na Google: code inwisselen voor een sessie
+  // Terugkeer in de app na Google: sessie uit de link overnemen (of, voor oudere links, code inwisselen)
+  let oauthOpenedAt = 0;
+  const handledReturns = new Set();
   Plugins.App?.addListener?.('appUrlOpen', async ({ url }) => {
-    if (!url || !url.startsWith(APP_RETURN)) return;
+    if (!url || !url.startsWith(APP_RETURN) || handledReturns.has(url)) return;
+    handledReturns.add(url);
+    oauthOpenedAt = 0;
     Plugins.Browser?.close().catch(() => {});
     const q = new URL(url.replace('#', '?')).searchParams;
-    const code = q.get('code');
-    if (code) {
-      const { error } = await SB.auth.exchangeCodeForSession(code);
-      if (error) authError(error);
-    } else if (q.get('error_description')) authError(q.get('error_description'));
+    let error = null;
+    if (q.get('access_token') && q.get('refresh_token')) {
+      ({ error } = await SB.auth.setSession({ access_token: q.get('access_token'), refresh_token: q.get('refresh_token') }));
+    } else if (q.get('code')) {
+      ({ error } = await SB.auth.exchangeCodeForSession(q.get('code')));
+    } else if (q.get('error_description')) error = new Error(q.get('error_description'));
+    // Al ingelogd (bijv. een tweede terugkeer)? Dan is er niets mis.
+    if (error && !(await SB.auth.getSession()).data.session) authError(error);
   });
   authEl.addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
