@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.8';
+  const APP_VERSION = '2026-11-24.9';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -143,6 +143,8 @@
   let state;
   try { state = JSON.parse(localStorage.getItem(STORE_KEY)) || defaultState(); } catch { state = defaultState(); }
   { const d = defaultState(); for (const k of ['places', 'routes', 'trips']) if (!state[k]) state[k] = d[k]; state.settings = { ...d.settings, ...state.settings }; }
+  // moneyOk: vergoeding en privé-km zelf gecontroleerd. Bestaande gebruikers niet lastigvallen.
+  if (state.settings.moneyOk === undefined && state.settings.onboarded) state.settings.moneyOk = true;
   const save = () => {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { console.warn(e); }
     window.dispatchEvent(new Event('ritlog:saved')); // account-synchronisatie luistert hiernaar
@@ -982,7 +984,13 @@
   }
   /* ---------- Overzicht als aanpasbare widgets ---------- */
   // kind: 'tile' = halve breedte (naast elkaar), 'card' = volle breedte, 'line' = regel tekst
-  const tile = (icon, value, label, sub, cls = '', edit = '') => `<div class="stat ${cls}${edit ? ' editable' : ''}"${edit ? ` role="button" tabindex="0" data-edit="${edit}" aria-label="${esc(label)}: ${esc(tr('aanpassen'))}"` : ''}><span class="s-ico">${icon}</span>${edit ? `<span class="stat-edit" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg></span>` : ''}<b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
+  // edit: tik opent de instelling. Zolang de standaardwaarden niet gecontroleerd zijn: oranje "Controleer"-label
+  const tile = (icon, value, label, sub, cls = '', edit = '') => {
+    const check = edit && !state.settings.moneyOk;
+    const badge = !edit ? '' : check ? `<span class="stat-check">${esc(tr('Controleer'))}</span>`
+      : `<span class="stat-edit" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg></span>`;
+    return `<div class="stat ${cls}${edit ? ' editable' : ''}${check ? ' unconfirmed' : ''}"${edit ? ` role="button" tabindex="0" data-edit="${edit}" aria-label="${esc(label)}: ${esc(tr(check ? 'standaardwaarde, tik om te controleren' : 'aanpassen'))}"` : ''}><span class="s-ico">${icon}</span>${badge}<b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
+  };
   const fmtBig = (n) => (Math.abs(n) >= 1000 ? fmtInt(n) : fmtKm(n));
   const h2i = (icon, text) => `<h2 class="h-ico"><span class="s-ico">${icon}</span>${esc(text)}</h2>`;
   const WIDGETS = [
@@ -1507,6 +1515,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     if (odo) state.lastOdo = odo;
     const priv = parseInt0($('#s-priv').value);
     if (priv != null) s.privAllowance = priv;
+    s.moneyOk = true;
     save(); if (!editingId) resetForm(); toast(tr('Opgeslagen'));
   });
   $('#s-tab').addEventListener('change', async () => {
@@ -1822,7 +1831,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     if (i >= 0) state.trips[i] = t; else state.trips.push(t);
   }
   // Instellingen die met je account meegaan (thema en taal blijven per apparaat)
-  const SYNC_KEYS = ['rate', 'car', 'plate', 'driver', 'defaultType', 'privAllowance', 'carName', 'carColor', 'carBody', 'dash', 'onboarded', 'scriptUrl', 'token', 'sheetTab'];
+  const SYNC_KEYS = ['rate', 'car', 'plate', 'driver', 'defaultType', 'privAllowance', 'moneyOk', 'carName', 'carColor', 'carBody', 'dash', 'onboarded', 'scriptUrl', 'token', 'sheetTab'];
   const cloudSettings = () => ({
     settings: Object.fromEntries(SYNC_KEYS.filter((k) => state.settings[k] !== undefined).map((k) => [k, state.settings[k]])),
     places: state.places.map(({ id, name, address, aliases, role }) => ({ id, name, address, aliases, role })),
@@ -2224,7 +2233,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
           <label>${esc(tr('Meestal rijd ik'))}</label>
           <div class="segmented" id="onb-type">${['Zakelijk', 'Privé'].map((v) => `<button type="button" data-v="${v}" class="${(s.defaultType || 'Zakelijk') === v ? 'on' : ''}">${esc(tr(v))}</button>`).join('')}</div>
         </div></div>`;
-      next.textContent = tr('Volgende');
+      next.textContent = tr('Klopt zo');
       $('#onb-type').addEventListener('click', (e) => {
         const b = e.target.closest('[data-v]'); if (!b) return;
         state.settings.defaultType = b.dataset.v;
@@ -2268,14 +2277,13 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       const page = TOUR[onb.tour];
       const mocks = {
         quick: `<div class="mock-tiles"><div class="mock-tile hero"><span>${esc(tr('Voorstel · rit {n}', { n: 1 }))}</span><b>${esc(tr('Huis → Werk'))}</b>${onb.route ? `${fmtKm(onb.route.km)} km` : '22,60 km'}</div><div class="mock-tile"><span>&nbsp;</span><b>${esc(tr('Werk → Huis'))}</b>${onb.route ? `${fmtKm(onb.route.km)} km` : '22,60 km'}</div></div>`,
+        // Dezelfde grafieken als op Overzicht, met een voorbeeldweek
         summary: (() => {
-          // Voorbeeldweek; dagnamen in de taal van de app (2024-01-01 is een maandag)
-          const day = (i) => new Date(2024, 0, 1 + i).toLocaleDateString(I18N.locale(), { weekday: 'short' }).replace('.', '');
-          const km = [38, 52, 46, 70, 31, 12, 6], peak = 3;
-          return `<div class="mock-chart"><div class="mock-read">${esc(day(peak))} · ${km[peak]} km</div>
-            <div class="mock-cols">${km.map((v, i) => `<span style="--h:${v}%;--i:${i}" class="${i === peak ? 'on' : ''}"><i></i><small>${esc(day(i))}</small></span>`).join('')}</div>
-            <div class="mock-split"><span class="seg-commute" style="flex:62"></span><span class="seg-other" style="flex:23"></span><span class="seg-private" style="flex:15"></span></div>
-            <div class="mock-legend"><span><i class="seg-commute"></i>${esc(tr('Woon-werk'))}</span><span><i class="seg-other"></i>${esc(tr('Overig zakelijk'))}</span><span><i class="seg-private"></i>${esc(tr('Privé'))}</span></div></div>`;
+          const km = [38, 52, 46, 70, 31, 12, 6];
+          const week = km.map((value, i) => ({ label: new Date(addDays('2024-01-01', i) + 'T12:00').toLocaleDateString(I18N.locale(), { weekday: 'short' }).replace('.', ''), value }));
+          const total = km.reduce((x, y) => x + y, 0);
+          const parts = { commute: 158, other: 58, private: 39, detour: 0 }; // samen 255 = de week hierboven
+          return `<div class="tour-charts">${columnChart(tr('Km per weekdag'), week, ICON.calendar)}${splitChart(parts, total)}</div>`;
         })(),
       };
       const texts = {
@@ -2291,7 +2299,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   }
 
   // Gegevens van de huidige stap bewaren
-  async function saveOnbStep() {
+  async function saveOnbStep(confirm = true) {
     const name = stepName();
     const s = state.settings;
     if (name === 'car') {
@@ -2312,6 +2320,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       }
     }
     if (name === 'money') {
+      if (confirm) s.moneyOk = true; // alleen bij "Klopt", niet bij Overslaan
       s.rate = parseDec($('#onb-rate').value) ?? s.rate;
       const p = parseInt0($('#onb-priv').value); if (p != null) s.privAllowance = p;
     }
@@ -2341,7 +2350,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   });
   $('#onb-skip').addEventListener('click', async () => {
     if (stepName() === 'tour' || onb.only === 'tour') { closeOnboarding(); return; }
-    await saveOnbStep();
+    await saveOnbStep(false);
     onb.step = ONB_STEPS.indexOf('tour'); onb.tour = 0; renderOnb();
   });
   $('#onb-redo').addEventListener('click', () => openOnboarding('car'));
