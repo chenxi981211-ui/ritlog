@@ -264,6 +264,13 @@ details.more summary { color: var(--primary); font-weight: 600; font-size: 14px;
 /* Ruimte onder het formulier zodat de laatste velden niet achter de knop verdwijnen */
 #screen-new { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
 body:has(#screen-new.active) { padding-bottom: 0; }
+/* Bewerken: Annuleren / Herhaal / Verwijderen even breed op één rij, opslaan er volle breedte onder */
+.save-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.save-actions .btn { min-width: 0; padding: 12px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.save-actions .btn.ghost { min-height: 44px; font-size: 15px; }
+.save-actions #save-btn { grid-column: 1 / -1; }
+.save-actions .btn.ghost.danger { background: color-mix(in srgb, var(--danger) 10%, var(--surface-2)); }
+body:has(#delete-btn:not(.hidden)) #screen-new { padding-bottom: calc(222px + env(safe-area-inset-bottom)); }
 .save-summary { font-size: 13px; color: var(--muted); margin-bottom: 8px; text-align: center; min-height: 18px; }
 
 /* ---------- Rittenlijst ---------- */

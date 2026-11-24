@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.4';
+  const APP_VERSION = '2026-11-24.5';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -1143,20 +1143,28 @@
   // Dialoog: naam, model, kenteken, kleur en vorm, met live 3D-voorbeeld
   let previewView = null;
   const draft = {};
-  function renderCarPickers() {
-    $('#c-colors').innerHTML = CAR_COLORS.map((c) => `<button type="button" data-color="${c}" style="background:${c}" class="${c === draft.carColor ? 'on' : ''}" aria-label="${c}"></button>`).join('');
-    const spec = carSpec($('#c-model').value);
+  // Vorm-keuze (gedeeld door Mijn auto en de onboarding): "Automatisch" volgt het herkende model
+  function bodyChipsHtml(model, selected) {
+    const spec = carSpec(model);
     const guess = BODY_TYPES.find(([k]) => k === (spec?.body || 'hatch'))[1];
     const sil = (k) => {
       const p = silhouetteFn?.(k);
       return p ? `<svg class="sil" viewBox="0 0 48 22" aria-hidden="true"><path d="${p.d}"/>${p.wheels.map((x) => `<circle cx="${x}" cy="${p.cy}" r="${p.r}"/>`).join('')}</svg>` : '';
     };
-    $('#c-body').innerHTML = [['auto', tr('Automatisch'), spec?.body || 'hatch'], ...BODY_TYPES.map(([k, l]) => [k, tr(l), k])]
-      .map(([k, l, shape]) => `<button type="button" role="radio" aria-checked="${k === draft.carBody}" data-body="${k}" class="chip${k === draft.carBody ? ' on' : ''}">${
+    return [['auto', tr('Automatisch'), spec?.body || 'hatch'], ...BODY_TYPES.map(([k, l]) => [k, tr(l), k])]
+      .map(([k, l, shape]) => `<button type="button" role="radio" aria-checked="${k === selected}" data-body="${k}" class="chip${k === selected ? ' on' : ''}">${
         k === 'auto' ? `<span class="chip-ico">${ICON.sparkle}</span>` : sil(shape)}<span>${esc(l)}${k === 'auto' ? `<small> · ${esc(tr(guess))}</small>` : ''}</span></button>`).join('');
-    $('#c-recog').textContent = spec?.name
+  }
+  function recogText(model) {
+    const spec = carSpec(model);
+    return spec?.name
       ? tr('Herkend: {m} — vorm en maten kloppen met de echte auto', { m: spec.name })
-      : ($('#c-model').value.trim() ? tr('Model niet herkend — kies hieronder de vorm die het meest lijkt') : '');
+      : (String(model || '').trim() ? tr('Model niet herkend — kies hieronder de vorm die het meest lijkt') : '');
+  }
+  function renderCarPickers() {
+    $('#c-colors').innerHTML = CAR_COLORS.map((c) => `<button type="button" data-color="${c}" style="background:${c}" class="${c === draft.carColor ? 'on' : ''}" aria-label="${c}"></button>`).join('');
+    $('#c-body').innerHTML = bodyChipsHtml($('#c-model').value, draft.carBody);
+    $('#c-recog').textContent = recogText($('#c-model').value);
   }
   const draftOpts = () => carOpts({ ...draft, car: $('#c-model').value });
   function updatePreview() { previewView?.update(draftOpts()); }
@@ -2024,7 +2032,6 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     }
     if (name === 'car') {
       const c = onb.car;
-      const spec = carSpec(c.car);
       body.innerHTML = `<div class="onb-step">
         <h2>${esc(tr('Wat voor auto rijd je?'))}</h2>
         <p class="lead">${esc(tr('We bouwen hem na. Typ merk en model en geef hem een naam.'))}</p>
@@ -2032,19 +2039,29 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
         <div class="card">
           <label for="onb-model">${esc(tr('Merk en model'))}</label>
           <input id="onb-model" value="${esc(c.car)}" placeholder="${esc(tr('Bijv. Toyota Aygo'))}" autocomplete="off">
-          <p class="hint" id="onb-recog">${spec?.name ? esc(tr('Herkend: {m} — vorm en maten kloppen met de echte auto', { m: spec.name })) : ''}</p>
+          <p class="hint" id="onb-recog">${esc(recogText(c.car))}</p>
           <label for="onb-name">${esc(tr('Naam'))}</label>
           <input id="onb-name" value="${esc(c.carName)}" placeholder="${esc(tr('Bijv. Bolletje'))}" maxlength="24">
           <label>${esc(tr('Kleur'))}</label>
           <div class="swatches" id="onb-colors">${CAR_COLORS.map((col) => `<button type="button" data-color="${col}" style="background:${col}" class="${col === c.carColor ? 'on' : ''}" aria-label="${col}"></button>`).join('')}</div>
+          <label>${esc(tr('Vorm'))}</label>
+          <div class="chips body-chips" id="onb-shape" role="radiogroup" aria-label="${esc(tr('Vorm'))}">${bodyChipsHtml(c.car, c.carBody)}</div>
         </div></div>`;
       next.textContent = tr('Volgende');
-      const opts = () => carOpts({ car: onb.car.car, carColor: onb.car.carColor, carBody: 'auto' });
-      loadCarModule().then(({ mountCar }) => { if (stepName() === 'car' && $('#onb-car')) onbCarView = mountCar($('#onb-car'), opts()); }).catch(() => {});
+      const opts = () => carOpts({ car: onb.car.car, carColor: onb.car.carColor, carBody: onb.car.carBody });
+      const renderBody = () => { $('#onb-shape').innerHTML = bodyChipsHtml(onb.car.car, onb.car.carBody); };
+      // Silhouetten komen uit car3d.js: na het laden de chips opnieuw tekenen
+      loadCarModule().then(({ mountCar }) => { if (stepName() === 'car' && $('#onb-car')) { onbCarView = mountCar($('#onb-car'), opts()); renderBody(); } }).catch(() => {});
       $('#onb-model').addEventListener('input', (e) => {
         onb.car.car = e.target.value;
-        const sp = carSpec(e.target.value);
-        $('#onb-recog').textContent = sp?.name ? tr('Herkend: {m} — vorm en maten kloppen met de echte auto', { m: sp.name }) : (e.target.value.trim() ? tr('Model niet herkend — je kunt de vorm later kiezen bij Mijn auto') : '');
+        $('#onb-recog').textContent = recogText(e.target.value);
+        renderBody();
+        onbCarView?.update(opts());
+      });
+      $('#onb-shape').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-body]'); if (!b) return;
+        onb.car.carBody = b.dataset.body;
+        renderBody();
         onbCarView?.update(opts());
       });
       $('#onb-name').addEventListener('input', (e) => { onb.car.carName = e.target.value; });
@@ -2194,7 +2211,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const s = state.settings;
     if (name === 'car') {
       const c = onb.car;
-      Object.assign(s, { carName: c.carName.trim(), car: c.car.trim(), carColor: c.carColor, carBody: 'auto' });
+      Object.assign(s, { carName: c.carName.trim(), car: c.car.trim(), carColor: c.carColor, carBody: c.carBody || 'auto' });
       if (!editingId) F('car').value = s.car;
     }
     if (name === 'places') {
