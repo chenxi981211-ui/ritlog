@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.13';
+  const APP_VERSION = '2026-11-24.14';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2055,17 +2055,19 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       if (error) throw error;
       return;
     }
+    // Google: altijd de accountkeuze tonen (anders logt Google stil in met het enige/vorige account)
+    const chooser = provider === 'google' ? { prompt: 'select_account' } : undefined;
     if (NATIVE) {
       // Google in de app: inlogpagina in een veilig browservenster, daarna terug naar de app.
       // Niet twee vensters tegelijk openen (dubbel tikken).
       if (Date.now() - oauthOpenedAt < 4000) return;
       oauthOpenedAt = Date.now();
-      const { data, error } = await (SB_OAUTH || SB).auth.signInWithOAuth({ provider, options: { redirectTo: APP_RETURN, skipBrowserRedirect: true } });
+      const { data, error } = await (SB_OAUTH || SB).auth.signInWithOAuth({ provider, options: { redirectTo: APP_RETURN, skipBrowserRedirect: true, queryParams: chooser } });
       if (error) throw error;
       await Plugins.Browser.open({ url: data.url, presentationStyle: 'popover' });
       return;
     }
-    const { error } = await SB.auth.signInWithOAuth({ provider, options: { redirectTo: WEB_RETURN } });
+    const { error } = await SB.auth.signInWithOAuth({ provider, options: { redirectTo: WEB_RETURN, queryParams: chooser } });
     if (error) throw error;
   }
   // Terugkeer in de app na Google: sessie uit de link overnemen (of, voor oudere links, code inwisselen)
