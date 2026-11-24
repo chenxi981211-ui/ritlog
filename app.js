@@ -9,12 +9,14 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.5';
+  const APP_VERSION = '2026-11-24.6';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
   const PDOK = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1';
   const OSRM = 'https://router.project-osrm.org/route/v1/driving';
+  // Buitenland: Photon (OpenStreetMap). PDOK kent alleen Nederlandse adressen.
+  const PHOTON = 'https://photon.komoot.io';
 
   // Sheet-kolommen in dezelfde volgorde als de Google Sheet
   const COLUMNS = [
@@ -172,16 +174,47 @@
   }
 
   const geoCache = {};
+  const pdokLabels = new Set(); // adressen die uit de PDOK-suggesties kwamen
+  const NL_POSTCODE = /\b\d{4}\s?[A-Z]{2}\b/;
+  const pdokPoint = (doc) => {
+    const m = doc?.centroide_ll?.match(/POINT\(([\d.\-]+) ([\d.\-]+)\)/);
+    return m ? { lon: +m[1], lat: +m[2] } : null;
+  };
+  // Photon-resultaat → leesbaar adres ("Alexanderplatz, Berlin, Germany"); Nederland zonder landnaam
+  function photonLabel(p) {
+    const street = p.street ? [p.street, p.housenumber].filter(Boolean).join(' ') : '';
+    const head = p.name && p.name !== p.street ? p.name : street || p.name;
+    const city = p.city || p.town || p.village || p.county || p.state;
+    const parts = [head, head === street ? '' : street, city !== head ? city : '', p.countrycode === 'NL' ? '' : p.country];
+    return [...new Set(parts.filter(Boolean))].join(', ');
+  }
+  async function photonSearch(q, limit) {
+    const home = placeByRole('home');
+    const bias = home?.lat ? `&lat=${home.lat}&lon=${home.lon}` : '';
+    const data = await fetchJSON(`${PHOTON}/api/?limit=${limit}&lang=${I18N.lang === 'en' ? 'en' : 'default'}${bias}&q=${encodeURIComponent(q)}`, {}, 6000);
+    return (data.features || []).map((f) => ({ label: photonLabel(f.properties), cc: f.properties.countrycode, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }))
+      .filter((h) => h.label);
+  }
+  async function pdokGeocode(addr) {
+    const data = await fetchJSON(`${PDOK}/free?rows=1&q=${encodeURIComponent(addr)}`);
+    return pdokPoint(data.response?.docs?.[0]);
+  }
   async function geocode(addr) {
     const key = norm(addr);
     if (geoCache[key]) return geoCache[key];
     const place = placeByAddress(addr);
     if (place?.lat) return (geoCache[key] = { lat: place.lat, lon: place.lon });
-    const data = await fetchJSON(`${PDOK}/free?rows=1&q=${encodeURIComponent(addr)}`);
-    const doc = data.response?.docs?.[0];
-    const m = doc?.centroide_ll?.match(/POINT\(([\d.\-]+) ([\d.\-]+)\)/);
-    if (!m) throw new Error(tr('Adres niet gevonden: {a}', { a: addr }));
-    return (geoCache[key] = { lon: +m[1], lat: +m[2] });
+    let pt = null;
+    if (pdokLabels.has(key) || NL_POSTCODE.test(addr)) pt = await pdokGeocode(addr);
+    else {
+      // Vrije tekst: eerst kijken in welk land het ligt. PDOK geeft voor buitenlandse adressen
+      // soms een Nederlandse plek met een lijkende naam, dus alleen PDOK gebruiken voor Nederland.
+      const hit = (await photonSearch(addr, 1).catch(() => []))[0];
+      if (hit && hit.cc !== 'NL') pt = { lat: hit.lat, lon: hit.lon };
+      else pt = (await pdokGeocode(addr).catch(() => null)) || (hit && { lat: hit.lat, lon: hit.lon });
+    }
+    if (!pt) throw new Error(tr('Adres niet gevonden: {a}', { a: addr }));
+    return (geoCache[key] = pt);
   }
   async function routeDistance(from, to) {
     const [a, b] = await Promise.all([geocode(from), geocode(to)]);
@@ -192,17 +225,35 @@
   }
   const tidyAddress = (s) => String(s || '').replace(/,?\s*\d{4}\s?[A-Z]{2}\b/, ',').replace(/,\s*,/g, ',').replace(/\s+,/g, ',').replace(/,\s*/g, ', ').trim();
 
+  // Suggesties: Nederlandse adressen uit PDOK (huisnummer-precies), de rest van de wereld uit Photon
   async function suggestAddresses(q) {
-    const data = await fetchJSON(`${PDOK}/suggest?rows=5&fq=type:(adres OR weg OR woonplaats OR postcode)&q=${encodeURIComponent(q)}`, {}, 6000);
-    return (data.response?.docs || []).map((d) => tidyAddress(d.weergavenaam));
+    const [nl, world] = await Promise.all([
+      fetchJSON(`${PDOK}/suggest?rows=5&fq=type:(adres OR weg OR woonplaats OR postcode)&q=${encodeURIComponent(q)}`, {}, 6000)
+        .then((d) => (d.response?.docs || []).map((x) => tidyAddress(x.weergavenaam))).catch(() => []),
+      NL_POSTCODE.test(q) ? [] : photonSearch(q, 6).catch(() => []),
+    ]);
+    nl.forEach((a) => pdokLabels.add(norm(a)));
+    const abroad = world.filter((h) => h.cc !== 'NL');
+    abroad.forEach((h) => { geoCache[norm(h.label)] = { lat: h.lat, lon: h.lon }; });
+    // Wijst de beste wereldwijde treffer naar het buitenland, dan die eerst
+    const abroadFirst = world[0] && world[0].cc !== 'NL';
+    const a = abroad.map((h) => h.label), n = nl;
+    const merged = abroadFirst ? [...a.slice(0, 4), ...n.slice(0, 3)] : [...n.slice(0, 4), ...a.slice(0, 3)];
+    return [...new Set(merged)];
   }
   async function reverseGeocode(lat, lon) {
     const near = state.places.find((p) => p.lat && haversine(lat, lon, p.lat, p.lon) < 0.15);
     if (near) return near.address;
-    const data = await fetchJSON(`${PDOK}/reverse?type=adres&rows=1&lat=${lat}&lon=${lon}`);
-    const doc = data.response?.docs?.[0];
-    if (!doc) throw new Error(tr('Geen adres gevonden'));
-    return tidyAddress(doc.weergavenaam);
+    const data = await fetchJSON(`${PDOK}/reverse?type=adres&rows=1&lat=${lat}&lon=${lon}`).catch(() => null);
+    const doc = data?.response?.docs?.[0];
+    // Buiten Nederland (of ver van het dichtstbijzijnde NL-adres): Photon
+    if (doc && !(doc.afstand > 250)) { const a = tidyAddress(doc.weergavenaam); pdokLabels.add(norm(a)); return a; }
+    const w = await fetchJSON(`${PHOTON}/reverse?lat=${lat}&lon=${lon}&lang=${I18N.lang === 'en' ? 'en' : 'default'}`).catch(() => null);
+    const f = w?.features?.[0];
+    if (!f) throw new Error(tr('Geen adres gevonden'));
+    const label = photonLabel(f.properties);
+    geoCache[norm(label)] = { lat, lon };
+    return label;
   }
   function haversine(lat1, lon1, lat2, lon2) {
     const R = 6371, toR = (x) => (x * Math.PI) / 180;
@@ -755,7 +806,21 @@
     const count = $('#trips-count');
     if (!trips.length) {
       count.textContent = '';
-      $('#trip-list').innerHTML = `<div class="empty">${esc(tr('Geen ritten in {m}.', { m: period.length > 4 ? monthLabel(period) : period }))}</div>`;
+      // Lege staat: illustratie + duwtje naar de (eerste) rit
+      const first = !liveTrips().length;
+      const when = period.length > 4 ? monthLabel(period) : period;
+      $('#trip-list').innerHTML = `<div class="empty-state">
+        <svg class="empty-art" viewBox="0 0 160 110" aria-hidden="true">
+          <ellipse cx="80" cy="98" rx="58" ry="7" class="ea-shadow"/>
+          <path d="M18 92 C 50 70, 70 96, 100 72 S 140 50, 146 36" class="ea-road"/>
+          <path d="M18 92 C 50 70, 70 96, 100 72 S 140 50, 146 36" class="ea-dash"/>
+          <circle cx="18" cy="92" r="5" class="ea-start"/>
+          <g class="ea-pin"><path d="M146 6c-9 0-16 7-16 16 0 12 16 26 16 26s16-14 16-26c0-9-7-16-16-16z"/><circle cx="146" cy="22" r="6" class="ea-pin-dot"/></g>
+        </svg>
+        <h3>${esc(first ? tr('Nog geen ritten') : tr('Geen ritten in {m}', { m: when }))}</h3>
+        <p>${esc(first ? tr('Je eerste rit staat in een paar tikken klaar. Daarna vult deze lijst zich vanzelf.') : tr('Kies een andere periode, of log een rit voor deze periode.'))}</p>
+        <button type="button" class="btn primary" data-go="new"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>${esc(tr(first ? 'Eerste rit loggen' : 'Rit toevoegen'))}</span></button>
+      </div>`;
       return;
     }
     count.textContent = tr(trips.length === 1 ? '{n} rit · {km} km' : '{n} ritten · {km} km', { n: trips.length, km: fmtKm(trips.reduce((a, t) => a + tripKm(t), 0)) });
@@ -917,14 +982,14 @@
   }
   /* ---------- Overzicht als aanpasbare widgets ---------- */
   // kind: 'tile' = halve breedte (naast elkaar), 'card' = volle breedte, 'line' = regel tekst
-  const tile = (icon, value, label, sub, cls = '') => `<div class="stat ${cls}"><span class="s-ico">${icon}</span><b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
+  const tile = (icon, value, label, sub, cls = '', edit = '') => `<div class="stat ${cls}${edit ? ' editable' : ''}"${edit ? ` role="button" tabindex="0" data-edit="${edit}" aria-label="${esc(label)}: ${esc(tr('aanpassen'))}"` : ''}><span class="s-ico">${icon}</span>${edit ? `<span class="stat-edit" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg></span>` : ''}<b>${value}</b><span>${esc(label)}${sub ? `<small class="stat-sub">${esc(sub)}</small>` : ''}</span></div>`;
   const fmtBig = (n) => (Math.abs(n) >= 1000 ? fmtInt(n) : fmtKm(n));
   const h2i = (icon, text) => `<h2 class="h-ico"><span class="s-ico">${icon}</span>${esc(text)}</h2>`;
   const WIDGETS = [
     { id: 'car', kind: 'card', name: 'Mijn auto', render: (c) => carCardHtml(c) },
     { id: 'total', kind: 'tile', name: 'Totaal km', render: (c) => tile(ICON.road, `${fmtBig(c.km)} km`, tr('totaal'), tr('incl. omrijkilometers')) },
-    { id: 'fee', kind: 'tile', name: 'Vergoeding', render: (c) => tile(ICON.euro, fmtEur(c.fee), tr('vergoeding'), tr('{r} per km', { r: fmtEur(state.settings.rate) })) },
-    { id: 'private', kind: 'tile', name: 'Privé-saldo', render: (c) => tile(ICON.wallet, `${fmtBig(c.privLeft)} km`, tr('privé-saldo {y}', { y: c.year }), tr('{u} van {a} km gebruikt', { u: fmtKm(c.privUsed), a: privAllowance() }), c.privLeft < 0 ? 'over' : '') },
+    { id: 'fee', kind: 'tile', name: 'Vergoeding', render: (c) => tile(ICON.euro, fmtEur(c.fee), tr('vergoeding'), tr('{r} per km', { r: fmtEur(state.settings.rate) }), '', 'rate') },
+    { id: 'private', kind: 'tile', name: 'Privé-saldo', render: (c) => tile(ICON.wallet, `${fmtBig(c.privLeft)} km`, tr('privé-saldo {y}', { y: c.year }), tr('{u} van {a} km gebruikt', { u: fmtKm(c.privUsed), a: privAllowance() }), c.privLeft < 0 ? 'over' : '', 'priv') },
     { id: 'odometer', kind: 'tile', name: 'Huidige km-stand', render: (c) => tile(ICON.gauge, c.odoNow ? fmtOdo(c.odoNow) : '–', tr('huidige km-stand')) },
     { id: 'line', kind: 'line', name: 'Ritten en langste rit', render: (c) => (c.n ? `<p class="hint summary-line">${tr(c.days === 1 ? 'ritten op {d} dag' : 'ritten op {d} dagen', { d: c.days }).replace(/^/, c.n + ' ')}${c.longest ? ` · ${tr('langste rit')}: ${fmtKm(c.longest.km)} km (${esc(placeName(c.longest.from))} → ${esc(placeName(c.longest.to))})` : ''}</p>` : '') },
     { id: 'avgRide', kind: 'tile', name: 'Gemiddeld per rit', render: (c) => (c.st ? tile(ICON.ruler, `${fmtKm(c.st.totalKm / c.n)} km`, tr('gem. per rit')) : '') },
@@ -1182,7 +1247,21 @@
     } catch { $('#car-preview').innerHTML = `<div class="car-fallback">${esc(tr('3D niet beschikbaar op dit toestel'))}</div>`; }
   }
   $('#car-row').addEventListener('click', openCarDialog);
-  $('#summary').addEventListener('click', (e) => { if (e.target.closest('#car-open')) openCarDialog(); });
+  $('#summary').addEventListener('click', (e) => {
+    if (e.target.closest('#car-open')) openCarDialog();
+    if (e.target.closest('[data-edit="priv"]')) editSetting('s-priv');
+    if (e.target.closest('[data-edit="rate"]')) editSetting('s-rate');
+  });
+  $('#summary').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-edit]')) { e.preventDefault(); e.target.click(); } });
+  // Spring naar een instelling en zet de cursor erin
+  function editSetting(id) {
+    go('settings');
+    const el = document.getElementById(id); if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    setTimeout(() => { el.focus({ preventScroll: true }); el.select?.(); }, 250);
+    el.closest('div')?.classList.add('flash');
+    setTimeout(() => el.closest('div')?.classList.remove('flash'), 1600);
+  }
   $('#c-colors').addEventListener('click', (e) => { const b = e.target.closest('[data-color]'); if (!b) return; draft.carColor = b.dataset.color; renderCarPickers(); updatePreview(); });
   $('#c-body').addEventListener('click', (e) => { const b = e.target.closest('[data-body]'); if (!b) return; draft.carBody = b.dataset.body; renderCarPickers(); updatePreview(); });
   $('#c-model').addEventListener('input', () => { renderCarPickers(); updatePreview(); });
@@ -2138,8 +2217,10 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
         <div class="card">
           <label for="onb-rate">${esc(tr('Vergoeding per km (€)'))}</label>
           <input id="onb-rate" inputmode="decimal" value="${esc(String(s.rate ?? 0.25).replace('.', ','))}">
+          <p class="hint">${esc(tr('Wat je werkgever per zakelijke km betaalt. Dit verschilt per werkgever en land: kijk in je contract of reiskostenregeling.'))}</p>
           <label for="onb-priv">${esc(tr('Privé-km per jaar'))}</label>
           <input id="onb-priv" inputmode="numeric" value="${esc(String(privAllowance()))}">
+          <p class="hint">${esc(tr('In Nederland mag je met een auto van de zaak max. 500 privé-km per jaar rijden zonder bijtelling. Geldt er voor jou iets anders? Pas het aan.'))}</p>
           <label>${esc(tr('Meestal rijd ik'))}</label>
           <div class="segmented" id="onb-type">${['Zakelijk', 'Privé'].map((v) => `<button type="button" data-v="${v}" class="${(s.defaultType || 'Zakelijk') === v ? 'on' : ''}">${esc(tr(v))}</button>`).join('')}</div>
         </div></div>`;
