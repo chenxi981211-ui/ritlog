@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.6';
+  const APP_VERSION = '2026-11-24.7';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2441,8 +2441,8 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const a = $('#help-mail');
     a.hidden = !mail;
     $('#help-web').hidden = !NATIVE || !CFG.webUrl; // alleen nuttig in de iPhone-app
-    a.href = `mailto:${mail}?subject=${encodeURIComponent(tr('Ritlog') + ' ' + APP_VERSION)}`;
-    $('#help-mail-sub').textContent = mail;
+    a.href = `mailto:${mail}?subject=${encodeURIComponent(tr('{app}: vraag of feedback', { app: tr('Ritlog') }) + ' (' + APP_VERSION + ')')}`;
+    $('#help-mail-sub').textContent = tr('Loop je ergens tegenaan of heb je een idee? Mail ons, we lezen alles.');
   }
   $('#help-faq').addEventListener('click', () => openUrl(CFG.supportUrl + (I18N.lang === 'en' ? '#en' : '')));
   $('#help-about').addEventListener('click', () => {
