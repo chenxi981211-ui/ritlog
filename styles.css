@@ -592,10 +592,14 @@ body.onb-open { overflow: hidden; }
 .tour-charts .col:nth-child(2) i { animation-delay: 70ms; } .tour-charts .col:nth-child(3) i { animation-delay: 140ms; }
 .tour-charts .col:nth-child(4) i { animation-delay: 210ms; } .tour-charts .col:nth-child(5) i { animation-delay: 280ms; }
 .tour-charts .col:nth-child(6) i { animation-delay: 350ms; } .tour-charts .col:nth-child(7) i { animation-delay: 420ms; }
-.tour-charts .split span { animation: mock-fade .6s ease .5s both; }
+.tour-charts .stats { margin: 6px 6px 0; gap: 8px; }
+.tour-charts .stat { background: var(--surface-2); box-shadow: none; padding: 12px; }
+.tour-charts .stat b { font-size: 20px; }
+.tour-charts .stat { animation: mock-fade .5s ease both; }
+.tour-charts .stat + .stat { animation-delay: .1s; }
 @keyframes mock-grow { from { transform: scaleY(0); } }
 @keyframes mock-fade { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .tour-charts .col i, .tour-charts .split span { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tour-charts .col i, .tour-charts .stat { animation: none; } }
 .mock-sync .round-btn { box-shadow: var(--shadow-float); }
 @media (prefers-reduced-motion: reduce) { .mock-tile.hero { animation: none; } }
 

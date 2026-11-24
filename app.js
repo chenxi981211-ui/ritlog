@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.10';
+  const APP_VERSION = '2026-11-24.11';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2281,9 +2281,10 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
         summary: (() => {
           const km = [38, 52, 46, 70, 31, 12, 6];
           const week = km.map((value, i) => ({ label: new Date(addDays('2024-01-01', i) + 'T12:00').toLocaleDateString(I18N.locale(), { weekday: 'short' }).replace('.', ''), value }));
-          const total = km.reduce((x, y) => x + y, 0);
-          const parts = { commute: 158, other: 58, private: 39, detour: 0 }; // samen 255 = de week hierboven
-          return `<div class="tour-charts">${columnChart(tr('Km per weekdag'), week, ICON.calendar)}${splitChart(parts, total)}</div>`;
+          // Twee kerncijfers als dezelfde tegels als op Overzicht: geld en de privé-grens
+          const tiles = `<div class="stats">${tile(ICON.euro, fmtEur(1284.5), tr('vergoeding'), tr('{r} per km', { r: fmtEur(0.25) }))}${
+            tile(ICON.wallet, '312 km', tr('privé-saldo {y}', { y: new Date().getFullYear() }), tr('{u} van {a} km gebruikt', { u: fmtInt(188), a: 500 }))}</div>`;
+          return `<div class="tour-charts">${tiles}${columnChart(tr('Km per weekdag'), week, ICON.calendar)}</div>`;
         })(),
         // De echte export-kaart van Overzicht (PDF en Excel), zonder ids en zonder import
         export: (() => {
@@ -2296,7 +2297,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       };
       const texts = {
         quick: ['Eén tik, rit gelogd', 'Bovenaan staan je vaste ritten. Tik erop, controleer en sla op. Afstand, datum en km-stand vult Ritlog zelf in.'],
-        summary: ['Jouw overzicht', 'Zie in één oogopslag waar je kilometers heen gaan. Tik op een staaf voor details en kies zelf wat je wilt zien.'],
+        summary: ['Jouw overzicht', 'Je vergoeding, je privé-saldo en wanneer je het meest rijdt, in één oogopslag. Kies zelf wat je wilt zien.'],
         export: ['Exporteren wanneer je wilt', 'Onderaan Overzicht maak je een PDF voor de Belastingdienst of een Excel-bestand, voor elke periode die je kiest.'],
       };
       body.innerHTML = `<div class="onb-step">

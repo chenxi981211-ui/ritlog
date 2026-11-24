@@ -278,7 +278,7 @@
     'Jouw overzicht': 'Your summary',
     'Exporteren wanneer je wilt': 'Export whenever you like',
     'Onderaan Overzicht maak je een PDF voor de Belastingdienst of een Excel-bestand, voor elke periode die je kiest.': 'At the bottom of Summary you can make a PDF for the tax office or an Excel file, for any period you choose.',
-    'Zie in één oogopslag waar je kilometers heen gaan. Tik op een staaf voor details en kies zelf wat je wilt zien.': 'See at a glance where your kilometres go. Tap a bar for details, and choose what you want to see.',
+    'Je vergoeding, je privé-saldo en wanneer je het meest rijdt, in één oogopslag. Kies zelf wat je wilt zien.': 'Your allowance, your private balance and when you drive most, at a glance. Choose what you want to see.',
     'Tik bij Overzicht op het schuifjes-icoon om onderdelen te verslepen, weg te halen of toe te voegen.': 'On Summary, tap the sliders icon to drag, remove or add items.',
     'Altijd up-to-date': 'Always up to date',
     'Het rondje bovenin ververst je ritten. Zonder internet bewaart Ritlog alles en stuurt het later door.': 'The circle at the top refreshes your rides. Without internet, Tootle keeps everything and sends it later.',
