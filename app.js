@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.7';
+  const APP_VERSION = '2026-11-24.8';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2055,7 +2055,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   // Bestaande gebruikers (met ritten of plekken) krijgen hem niet vanzelf te zien.
   const onbEl = $('#onboarding');
   const ONB_STEPS = ['welcome', 'car', 'places', 'money', 'connect', 'tour'];
-  const TOUR = ['quick', 'rides', 'summary', 'sync'];
+  const TOUR = ['quick', 'summary'];
   let onb = { step: 0, tour: 0, only: null, car: null, home: '', work: '', route: null, store: 'app' };
   let onbCarView = null;
   const ico = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
@@ -2268,15 +2268,19 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       const page = TOUR[onb.tour];
       const mocks = {
         quick: `<div class="mock-tiles"><div class="mock-tile hero"><span>${esc(tr('Voorstel · rit {n}', { n: 1 }))}</span><b>${esc(tr('Huis → Werk'))}</b>${onb.route ? `${fmtKm(onb.route.km)} km` : '22,60 km'}</div><div class="mock-tile"><span>&nbsp;</span><b>${esc(tr('Werk → Huis'))}</b>${onb.route ? `${fmtKm(onb.route.km)} km` : '22,60 km'}</div></div>`,
-        rides: `<div class="mock-step"><span>−</span><b>2</b><span>+</span></div><div class="mock-chips"><span class="ride-chip"><b>1</b>${esc(tr('Thuis'))} → ${esc(tr('Werk'))}</span><span class="ride-chip"><b>2</b>${esc(tr('Werk'))} → ${esc(tr('Thuis'))}</span></div>`,
-        summary: `<div class="mock-row lift">${ICON.grip}<span class="grow">${esc(tr('Totaal km'))}</span><span class="minus">−</span></div><div class="mock-row">${ICON.grip}<span class="grow">${esc(tr('Privé-saldo'))}</span><span class="minus">−</span></div><div class="mock-row">${ICON.grip}<span class="grow">${esc(tr('Km per weekdag'))}</span><span class="minus">−</span></div>`,
-        sync: `<div class="mock-sync"><span class="round-btn sync-pill ok">${ICON_REFRESH}<span class="sync-dot"></span></span><span>${esc(tr('Bijgewerkt'))}</span></div><div class="mock-sync"><span class="round-btn">${ICON.moon}</span><span>${esc(tr('Licht of donker'))}</span></div>`,
+        summary: (() => {
+          // Voorbeeldweek; dagnamen in de taal van de app (2024-01-01 is een maandag)
+          const day = (i) => new Date(2024, 0, 1 + i).toLocaleDateString(I18N.locale(), { weekday: 'short' }).replace('.', '');
+          const km = [38, 52, 46, 70, 31, 12, 6], peak = 3;
+          return `<div class="mock-chart"><div class="mock-read">${esc(day(peak))} · ${km[peak]} km</div>
+            <div class="mock-cols">${km.map((v, i) => `<span style="--h:${v}%;--i:${i}" class="${i === peak ? 'on' : ''}"><i></i><small>${esc(day(i))}</small></span>`).join('')}</div>
+            <div class="mock-split"><span class="seg-commute" style="flex:62"></span><span class="seg-other" style="flex:23"></span><span class="seg-private" style="flex:15"></span></div>
+            <div class="mock-legend"><span><i class="seg-commute"></i>${esc(tr('Woon-werk'))}</span><span><i class="seg-other"></i>${esc(tr('Overig zakelijk'))}</span><span><i class="seg-private"></i>${esc(tr('Privé'))}</span></div></div>`;
+        })(),
       };
       const texts = {
         quick: ['Eén tik, rit gelogd', 'Bovenaan staan je vaste ritten. Tik erop, controleer en sla op. Afstand, datum en km-stand vult Ritlog zelf in.'],
-        rides: ['Ritnummers per dag', 'Elke rit krijgt automatisch het volgende nummer. Vergeten rit? Ritlog ziet het gat en vult het voor je in.'],
-        summary: ['Jouw overzicht', 'Tik bij Overzicht op het schuifjes-icoon om onderdelen te verslepen, weg te halen of toe te voegen.'],
-        sync: ['Altijd up-to-date', 'Het rondje bovenin ververst je ritten. Zonder internet bewaart Ritlog alles en stuurt het later door.'],
+        summary: ['Jouw overzicht', 'Zie in één oogopslag waar je kilometers heen gaan. Tik op een staaf voor details en kies zelf wat je wilt zien.'],
       };
       body.innerHTML = `<div class="onb-step">
         <div class="tour-mock">${mocks[page]}</div>

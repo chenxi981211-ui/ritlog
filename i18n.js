@@ -276,6 +276,7 @@
     'Ritnummers per dag': 'Ride numbers per day',
     'Elke rit krijgt automatisch het volgende nummer. Vergeten rit? Ritlog ziet het gat en vult het voor je in.': 'Every ride gets the next number automatically. Forgot one? Tootle spots the gap and fills it in for you.',
     'Jouw overzicht': 'Your summary',
+    'Zie in één oogopslag waar je kilometers heen gaan. Tik op een staaf voor details en kies zelf wat je wilt zien.': 'See at a glance where your kilometres go. Tap a bar for details, and choose what you want to see.',
     'Tik bij Overzicht op het schuifjes-icoon om onderdelen te verslepen, weg te halen of toe te voegen.': 'On Summary, tap the sliders icon to drag, remove or add items.',
     'Altijd up-to-date': 'Always up to date',
     'Het rondje bovenin ververst je ritten. Zonder internet bewaart Ritlog alles en stuurt het later door.': 'The circle at the top refreshes your rides. Without internet, Tootle keeps everything and sends it later.',
