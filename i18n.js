@@ -276,6 +276,8 @@
     'Ritnummers per dag': 'Ride numbers per day',
     'Elke rit krijgt automatisch het volgende nummer. Vergeten rit? Ritlog ziet het gat en vult het voor je in.': 'Every ride gets the next number automatically. Forgot one? Tootle spots the gap and fills it in for you.',
     'Jouw overzicht': 'Your summary',
+    'Exporteren wanneer je wilt': 'Export whenever you like',
+    'Onderaan Overzicht maak je een PDF voor de Belastingdienst of een Excel-bestand, voor elke periode die je kiest.': 'At the bottom of Summary you can make a PDF for the tax office or an Excel file, for any period you choose.',
     'Zie in één oogopslag waar je kilometers heen gaan. Tik op een staaf voor details en kies zelf wat je wilt zien.': 'See at a glance where your kilometres go. Tap a bar for details, and choose what you want to see.',
     'Tik bij Overzicht op het schuifjes-icoon om onderdelen te verslepen, weg te halen of toe te voegen.': 'On Summary, tap the sliders icon to drag, remove or add items.',
     'Altijd up-to-date': 'Always up to date',
