@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-24.14';
+  const APP_VERSION = '2026-11-25.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -2565,6 +2565,8 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const a = $('#help-mail');
     a.hidden = !mail;
     $('#help-web').hidden = !NATIVE || !CFG.webUrl; // alleen nuttig in de iPhone-app
+    // Op de website: badge naar de iPhone-app (niet in de app zelf)
+    ['#auth-store', '#help-store'].forEach((sel) => { const a = $(sel); if (!a) return; a.hidden = NATIVE || !CFG.appStoreUrl; a.href = CFG.appStoreUrl || ''; });
     a.href = `mailto:${mail}?subject=${encodeURIComponent(tr('{app}: vraag of feedback', { app: tr('Ritlog') }) + ' (' + APP_VERSION + ')')}`;
     $('#help-mail-sub').textContent = tr('Loop je ergens tegenaan of heb je een idee? Mail ons, we lezen alles.');
   }
@@ -2579,6 +2581,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     $('#about-dialog').showModal();
   });
   $('#help-web').addEventListener('click', () => openUrl(CFG.webUrl));
+  renderHelp(); // ook voor de App Store-badge op het inlogscherm
   // In de app: in een browservenster openen (anders opent de link niets)
   $('#about-coffee').addEventListener('click', (e) => { if (NATIVE && CFG.coffeeUrl) { e.preventDefault(); openUrl(CFG.coffeeUrl); } });
 

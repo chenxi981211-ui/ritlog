@@ -209,6 +209,7 @@
     'Hulp & support': 'Help & support',
     'Stuur een e-mail': 'Send an email',
     'Vraag of feedback': 'Question or feedback',
+    'Download in de': 'Download on the',
     '{app}: vraag of feedback': '{app}: question or feedback',
     'Loop je ergens tegenaan of heb je een idee? Mail ons, we lezen alles.': 'Stuck on something or have an idea? Email us, we read everything.',
     'Veelgestelde vragen': 'Frequently asked questions',

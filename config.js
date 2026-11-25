@@ -24,6 +24,7 @@ window.RITLOG_CONFIG = {
   supportEmail: 'xicheninfo@gmail.com',
   supportUrl: 'https://chenxi981211-ui.github.io/ritlog/legal/support.html',
   webUrl: 'https://chenxi981211-ui.github.io/ritlog/',
+  appStoreUrl: 'https://apps.apple.com/app/id6834929920', // iPhone-app (badge op de website)
   coffeeUrl: 'https://buymeacoffee.com/xiichen', // Buy Me a Coffee-link (website én app)
   about: {
     nl: 'Mijn vriend rijdt elke dag met zijn leaseauto naar zijn werk en terug, en moet voor de Belastingdienst elke rit netjes bijhouden. Dat was elke keer weer gedoe: adressen opzoeken, kilometers uitrekenen, alles overtypen in een spreadsheet.\n\nOm dat probleem voor hem op te lossen, heb ik Ritlog zelf ontworpen en gebouwd. Nu logt hij een rit in een paar tikken, en hopelijk helpt het jou net zo goed.\n\nVragen, ideeën of iets dat niet goed werkt? Stuur me gerust een mailtje.',
