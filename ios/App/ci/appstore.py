@@ -67,19 +67,30 @@ def editable(items, key_names=('appStoreState', 'state', 'appVersionState')):
 
 def version():
     vs = call('GET', f'/v1/apps/{APP}/appStoreVersions?filter[platform]=IOS&limit=20')['data']
+    want = CFG.get('version', '1.0')
     v = editable(vs)
     if not v:
-        v = call('POST', '/v1/appStoreVersions', {'data': {'type': 'appStoreVersions', 'attributes': {'platform': 'IOS', 'versionString': '1.0'},
+        v = call('POST', '/v1/appStoreVersions', {'data': {'type': 'appStoreVersions', 'attributes': {'platform': 'IOS', 'versionString': want},
                                                             'relationships': {'app': rel('apps', APP)}}})['data']
+    elif v['attributes'].get('versionString') != want:
+        v = call('PATCH', f"/v1/appStoreVersions/{v['id']}", {'data': {'type': 'appStoreVersions', 'id': v['id'], 'attributes': {'versionString': want}}})['data']
     return v
 
 
 def listing():
+    ver = version()  # eerst de (nieuwe) versie: daarmee maakt Apple ook een bewerkbare App Information aan
+    VER = ver['id']
     info = editable(call('GET', f'/v1/apps/{APP}/appInfos')['data']) or call('GET', f'/v1/apps/{APP}/appInfos')['data'][0]
     INFO = info['id']
-    ver = version()
-    VER = ver['id']
     print('Version', ver['attributes'].get('versionString'), ver['attributes'].get('appStoreState') or ver['attributes'].get('appVersionState'))
+    FIRST = ver['attributes'].get('versionString') == '1.0'
+
+    def primary_locale():
+        want = CFG.get('primaryLocale')
+        if want and app['attributes'].get('primaryLocale') != want:
+            call('PATCH', f'/v1/apps/{APP}', {'data': {'type': 'apps', 'id': APP, 'attributes': {'primaryLocale': want}}})
+        print('   primary language:', want or app['attributes'].get('primaryLocale'))
+    step('Primary language (other countries fall back to this one)', primary_locale)
 
     def app_info_texts():
         have = {l['attributes']['locale']: l['id'] for l in call('GET', f'/v1/appInfos/{INFO}/appInfoLocalizations')['data']}
@@ -137,6 +148,8 @@ def listing():
         have = {l['attributes']['locale']: l['id'] for l in call('GET', f'/v1/appStoreVersions/{VER}/appStoreVersionLocalizations')['data']}
         for loc, t in CFG['locales'].items():
             attrs = {'description': t['description'], 'keywords': t['keywords'], 'promotionalText': t['promotionalText'], 'supportUrl': CFG['supportUrl']}
+            if not FIRST and t.get('whatsNew'):
+                attrs['whatsNew'] = t['whatsNew']  # alleen bij updates, niet bij de eerste versie
             if loc in have:
                 call('PATCH', f'/v1/appStoreVersionLocalizations/{have[loc]}', {'data': {'type': 'appStoreVersionLocalizations', 'id': have[loc], 'attributes': attrs}})
                 vlocs[loc] = have[loc]
@@ -179,7 +192,7 @@ def listing():
     step('Screenshots (6.9-inch iPhone, NL + EN)', screenshots)
 
     def build():
-        b = call('GET', f'/v1/builds?filter[app]={APP}&filter[processingState]=VALID&sort=-uploadedDate&limit=1')['data']
+        b = call('GET', f"/v1/builds?filter[app]={APP}&filter[processingState]=VALID&filter[preReleaseVersion.version]={CFG.get('version', '1.0')}&sort=-uploadedDate&limit=1")['data']
         if not b:
             raise SystemExit('no processed build found yet')
         b = b[0]
