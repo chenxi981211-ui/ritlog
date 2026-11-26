@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "primaryLocale": "en-GB",
   "locales": {
     "nl-NL": {
@@ -13,7 +13,7 @@
       "keywords": "rittenregistratie,kilometers,leaseauto,zakelijk,privé,km-stand,vergoeding,belasting,bijtelling",
       "description": "Ritlog maakt je rittenregistratie voor de lease- of zakenauto snel, simpel en zelfs een beetje leuk.\n\nLOG EEN RIT IN TWEE TIKKEN\n• Tik op een voorgestelde route, zoals Huis → Werk, en sla op\n• Afstand wordt automatisch berekend, de km-stand loopt vanzelf door\n• Zakelijk of privé, omrijkilometers en een ritnummer per dag\n• Geen GPS-tracking op de achtergrond: geen lege accu, geen locatiegeschiedenis\n\nZIE WAAR JE KILOMETERS HEEN GAAN\n• Totale kilometers, vergoeding en je privé-saldo (zoals de 500 km per jaar voor de Belastingdienst)\n• Grafieken per week, maand en weekdag, je drukste dag en een verwachting voor het jaar\n• Pas je overzicht zelf aan: tegels verslepen, weghalen of toevoegen\n\nRAPPORTEER IN SECONDEN\n• Exporteer een nette rittenregistratie als PDF, met km-stand, adressen en zakelijk of privé per rit, plus totalen\n• Download voor Excel of kopieer naar Google Sheets\n• Importeer je bestaande ritten uit een CSV\n\nJOUW GEGEVENS, JOUW MANIER\n• Koppel optioneel je eigen Google Sheet: ritten komen er direct in te staan\n• Log in met Apple of Google om te synchroniseren, of gebruik het zonder account\n• Gratis, geen advertenties, geen tracking\n\nEN JE EIGEN AUTOOTJE\n• Geef je auto een naam en zie hem in 3D, in de juiste vorm en kleur\n\nNederlands en Engels, licht en donker thema. Geen belastingadvies.",
       "screenshots": "nl",
-      "whatsNew": "Kleine verbeteringen en oplossingen. Bedankt voor het gebruiken van Ritlog!"
+      "whatsNew": "Nieuw: een korte uitleg over wat Ritlog wel en niet doet, en de gebruiksvoorwaarden in de app. Plus kleine verbeteringen."
     },
     "en-GB": {
       "name": [
@@ -27,7 +27,7 @@
       "keywords": "mileage,tracker,km,trip,log,logbook,company car,lease,business,expense,reimbursement,odometer,tax",
       "description": "Tootle makes keeping a mileage log for your company or lease car quick, simple and even a little fun.\n\nLOG A TRIP IN TWO TAPS\n• Tap a suggested route, like Home → Work, and save\n• Distance is calculated for you and the odometer carries over\n• Business or private, detour kilometres and a trip number per day\n• No GPS tracking in the background: no battery drain, no location history\n\nSEE WHERE YOUR KILOMETRES GO\n• Total kilometres, reimbursement and your private-use balance (for example the 500 km yearly limit in the Netherlands)\n• Charts per week, month and weekday, your busiest day and a year-end forecast\n• Make the summary your own: drag, remove or add tiles\n\nREPORT IN SECONDS\n• Export a clean trip log as PDF, with odometer readings, addresses and business or private for every trip, plus totals\n• Download for Excel or copy to Google Sheets\n• Import your existing trips from a CSV\n\nYOUR DATA, YOUR WAY\n• Optionally connect your own Google Sheet: trips land there instantly\n• Sign in with Apple or Google to sync across devices, or use it without an account\n• Free, no ads, no tracking\n\nAND YOUR OWN LITTLE CAR\n• Name your car and see it in 3D, in the right shape and colour\n\nEnglish and Dutch, light and dark theme. Not tax advice.",
       "screenshots": "en",
-      "whatsNew": "Small improvements and fixes. Thanks for using Tootle!"
+      "whatsNew": "New: a short explanation of what Tootle does and doesn’t do, and the terms of use in the app. Plus small improvements."
     }
   },
   "privacyPolicyUrl": "https://chenxi981211-ui.github.io/ritlog/legal/privacy.html",
