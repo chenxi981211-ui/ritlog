@@ -569,6 +569,28 @@ body.onb-open { overflow: hidden; }
 .onb-point .l-ico .ico { width: 20px; height: 20px; }
 .onb-point b { display: block; }
 .onb-point small { color: var(--muted); font-size: 14px; }
+/* Gebruiksvoorwaarden: akkoord-kaart met eigen vinkje (onboarding én los venster) */
+.terms-check { display: flex; gap: 12px; align-items: center; margin: 14px 0 0; padding: 14px 16px; background: var(--surface); border: 2px solid transparent; border-radius: 18px; box-shadow: var(--shadow); cursor: pointer; font-size: 15px; line-height: 1.4; color: var(--text); transition: border-color .15s ease; }
+.terms-check input { position: absolute; opacity: 0; pointer-events: none; }
+.terms-check .tick { width: 26px; height: 26px; flex: none; border-radius: 8px; border: 2px solid var(--line-strong, var(--muted)); display: grid; place-items: center; color: transparent; transition: background .15s ease, border-color .15s ease; }
+.terms-check .tick .ico { width: 16px; height: 16px; stroke-width: 3; }
+.terms-check:has(input:checked) { border-color: var(--primary); }
+.terms-check:has(input:checked) .tick { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+.terms-check:has(input:focus-visible) .tick { outline: 2px solid var(--primary); outline-offset: 2px; }
+.terms-check a { color: var(--primary); font-weight: 600; }
+.terms-dialog h2 { margin-bottom: 4px; }
+.terms-dialog .onb-point, .terms-dialog .terms-check { box-shadow: none; background: var(--surface-2); }
+.terms-dialog { padding-bottom: 0; }
+.terms-dialog .onb-points { margin-top: 12px; gap: 8px; }
+.terms-dialog .onb-point { padding: 12px 14px; gap: 12px; }
+.terms-dialog .onb-point .l-ico { width: 34px; height: 34px; border-radius: 10px; }
+.terms-dialog .onb-point b { font-size: 15px; }
+.terms-dialog .onb-point small { font-size: 13px; line-height: 1.4; display: block; }
+.terms-dialog .terms-check { margin-top: 10px; padding: 12px 14px; }
+/* Knop blijft onderin zichtbaar, ook als het venster scrolt */
+.terms-dialog .terms-foot { position: sticky; bottom: 0; margin: 14px -22px 0; padding: 12px 22px 18px; background: var(--surface); box-shadow: 0 -1px 0 var(--line); }
+.terms-dialog .terms-accept { width: 100%; }
+.btn.primary:disabled { opacity: .45; }
 .onb .car-stage { height: 200px; border-radius: var(--radius); background: var(--stage); box-shadow: var(--shadow); margin-bottom: 16px; }
 .onb .card { margin-bottom: 12px; }
 .onb-route { display: flex; align-items: center; gap: 10px; background: var(--primary-soft); color: var(--primary); border-radius: 14px; padding: 12px 14px; font-weight: 600; margin-top: 4px; }

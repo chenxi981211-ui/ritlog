@@ -9,7 +9,7 @@
   const NATIVE = !!window.Capacitor?.isNativePlatform?.();
   const Plugins = window.Capacitor?.Plugins || {};
   if (NATIVE) document.documentElement.classList.add('native');
-  const APP_VERSION = '2026-11-25.1';
+  const APP_VERSION = '2026-11-26.1';
   const I18N = window.RitlogI18n;
   const tr = I18N.t;
   const CFG = window.RITLOG_CONFIG || {};
@@ -336,7 +336,7 @@
     if (g) go(g.dataset.go);
   });
   // Elk venster: sluiten met een kruisje rechtsboven (geen aparte Annuleren-knop)
-  $$('dialog').forEach((d) => {
+  $$('dialog:not([data-noclose])').forEach((d) => {
     const x = document.createElement('button');
     x.type = 'button'; x.className = 'dialog-x';
     x.setAttribute('aria-label', tr('Sluiten'));
@@ -1891,7 +1891,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     if (i >= 0) state.trips[i] = t; else state.trips.push(t);
   }
   // Instellingen die met je account meegaan (thema en taal blijven per apparaat)
-  const SYNC_KEYS = ['rate', 'car', 'plate', 'driver', 'defaultType', 'privAllowance', 'moneyOk', 'carName', 'carColor', 'carBody', 'dash', 'onboarded', 'scriptUrl', 'token', 'sheetTab'];
+  const SYNC_KEYS = ['rate', 'car', 'plate', 'driver', 'defaultType', 'privAllowance', 'moneyOk', 'carName', 'carColor', 'carBody', 'dash', 'onboarded', 'termsV', 'termsAt', 'scriptUrl', 'token', 'sheetTab'];
   const cloudSettings = () => ({
     settings: Object.fromEntries(SYNC_KEYS.filter((k) => state.settings[k] !== undefined).map((k) => [k, state.settings[k]])),
     places: state.places.map(({ id, name, address, aliases, role }) => ({ id, name, address, aliases, role })),
@@ -2164,17 +2164,50 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   // Stappen: welkom → auto → vaste plekken → vergoeding → koppeling → rondleiding.
   // Bestaande gebruikers (met ritten of plekken) krijgen hem niet vanzelf te zien.
   const onbEl = $('#onboarding');
-  const ONB_STEPS = ['welcome', 'car', 'places', 'money', 'connect', 'tour'];
+  const ONB_STEPS = ['welcome', 'car', 'places', 'money', 'connect', 'terms', 'tour'];
   const TOUR = ['quick', 'summary', 'export'];
   let onb = { step: 0, tour: 0, only: null, car: null, home: '', work: '', route: null, store: 'app' };
   let onbCarView = null;
   const ico = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 
   function maybeOnboard() {
-    if (state.settings.onboarded || !authEl.classList.contains('hidden')) return;
-    if (state.trips.length || state.places.length) { state.settings.onboarded = true; save(); return; }
+    if (!authEl.classList.contains('hidden')) return;
+    if (state.settings.onboarded) { maybeAskTerms(); return; }
+    if (state.trips.length || state.places.length) { state.settings.onboarded = true; save(); maybeAskTerms(); return; }
     openOnboarding();
   }
+
+  /* ---------- Gebruiksvoorwaarden: één keer akkoord (nieuw: in de onboarding, bestaand: los venster) ---------- */
+  // Verhoog TERMS_V als de tekst belangrijk verandert; dan vraagt de app één keer opnieuw.
+  const TERMS_V = 1;
+  const termsOk = () => (state.settings.termsV || 0) >= TERMS_V;
+  function acceptTerms() { state.settings.termsV = TERMS_V; state.settings.termsAt = new Date().toISOString(); save(); }
+  const openTerms = () => openUrl(CFG.termsUrl + (I18N.lang === 'en' ? '#en' : ''));
+  function termsBlockHtml(id) {
+    const point = (icon, title, text) => `<div class="onb-point"><span class="l-ico">${ico(icon)}</span><span><b>${esc(tr(title))}</b><small>${esc(tr(text))}</small></span></div>`;
+    return `<div class="onb-points">
+        ${point('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>', 'Jij houdt je gegevens bij', 'Controleer je ritten, kilometers en km-standen voordat je ze gebruikt, bijvoorbeeld voor de Belastingdienst of je werkgever.')}
+        ${point('<path d="M4 19c4 0 4-6 8-6s4-6 8-6"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="7" r="2"/>', 'Afstanden zijn een schatting', 'Ze worden automatisch berekend en kunnen afwijken van de route die je echt reed. Pas ze aan waar nodig.')}
+        ${point('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>', 'Geen belastingadvies', 'Twijfel je over regels zoals de 500 km of de bijtelling? Vraag het de Belastingdienst of een adviseur.')}
+      </div>
+      <label class="terms-check" for="${id}">
+        <input type="checkbox" id="${id}"${termsOk() ? ' checked' : ''}>
+        <span class="tick" aria-hidden="true">${ICON.check}</span>
+        <span>${esc(tr('Ik begrijp dit en ga akkoord met de'))} <a href="#" data-terms-link>${esc(tr('gebruiksvoorwaarden'))}</a></span>
+      </label>`;
+  }
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-terms-link]')) { e.preventDefault(); openTerms(); } });
+  // Bestaande gebruikers (of wie de onboarding oversloeg): los venster, sluiten kan alleen met Akkoord
+  function maybeAskTerms() {
+    if (termsOk() || !onbEl.classList.contains('hidden') || !authEl.classList.contains('hidden') || $('#terms-dialog').open) return;
+    $('#terms-body').innerHTML = termsBlockHtml('terms-agree');
+    const btn = $('#terms-accept');
+    btn.disabled = true;
+    $('#terms-agree').addEventListener('change', (e) => { btn.disabled = !e.target.checked; });
+    $('#terms-dialog').showModal();
+  }
+  $('#terms-accept').addEventListener('click', () => { if (!$('#terms-agree')?.checked) return; acceptTerms(); $('#terms-dialog').close(); });
+  $('#terms-dialog').addEventListener('cancel', (e) => e.preventDefault());
   function openOnboarding(startAt = 'welcome', only = null) {
     const s = state.settings;
     onb = {
@@ -2202,7 +2235,9 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const at = onb.only === 'tour' ? onb.tour : (name === 'tour' ? ONB_STEPS.length - 1 + onb.tour : onb.step);
     $('#onb-dots').innerHTML = Array.from({ length: steps }, (_, i) => `<span class="${i === at ? 'on' : ''}"></span>`).join('');
     $('#onb-back').style.visibility = at === 0 ? 'hidden' : 'visible';
-    $('#onb-skip').style.visibility = name === 'tour' && onb.tour === TOUR.length - 1 ? 'hidden' : 'visible';
+    // Akkoord kun je niet overslaan; op de laatste rondleidingspagina is er niets meer over te slaan
+    $('#onb-skip').style.visibility = name === 'terms' || (name === 'tour' && onb.tour === TOUR.length - 1) ? 'hidden' : 'visible';
+    $('#onb-next').disabled = false;
     if (name !== 'car') { onbCarView?.destroy(); onbCarView = null; }
     const body = $('#onb-body');
     const next = $('#onb-next');
@@ -2374,6 +2409,15 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
         try { await navigator.clipboard.writeText(await loadScriptText()); e.target.textContent = tr('✓ Gekopieerd — plak in Apps Script'); } catch { /* geen klembord */ }
       });
     }
+    if (name === 'terms') {
+      body.innerHTML = `<div class="onb-step">
+        <h2>${esc(tr('Even belangrijk'))}</h2>
+        <p class="lead">${esc(tr('Ritlog helpt je je ritten bij te houden. Lees dit even voordat je begint.'))}</p>
+        ${termsBlockHtml('onb-agree')}</div>`;
+      next.textContent = tr('Akkoord en verder');
+      next.disabled = !$('#onb-agree').checked;
+      $('#onb-agree').addEventListener('change', (e) => { next.disabled = !e.target.checked; });
+    }
     if (name === 'tour') {
       const page = TOUR[onb.tour];
       const mocks = {
@@ -2435,6 +2479,10 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
       s.rate = parseDec($('#onb-rate').value) ?? s.rate;
       const p = parseInt0($('#onb-priv').value); if (p != null) s.privAllowance = p;
     }
+    if (name === 'terms') {
+      if (!$('#onb-agree')?.checked) return false;
+      acceptTerms();
+    }
     if (name === 'connect' && onb.store === 'sheet' && !s.scriptUrl) {
       const parsed = parseConnect($('#onb-connect')?.value);
       if (parsed) { const r = await connectSheet(parsed.url, parsed.token); if (!r.ok) return false; }
@@ -2446,7 +2494,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     const btn = $('#onb-next');
     btn.disabled = true;
     const ok = await saveOnbStep();
-    btn.disabled = false;
+    btn.disabled = stepName() === 'terms' && !$('#onb-agree')?.checked;
     if (!ok) return;
     if (stepName() === 'tour') {
       if (onb.tour < TOUR.length - 1) { onb.tour++; renderOnb(); } else closeOnboarding();
@@ -2462,7 +2510,8 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
   $('#onb-skip').addEventListener('click', async () => {
     if (stepName() === 'tour' || onb.only === 'tour') { closeOnboarding(); return; }
     await saveOnbStep(false);
-    onb.step = ONB_STEPS.indexOf('tour'); onb.tour = 0; renderOnb();
+    // Overslaan slaat de instellingen over, niet het akkoord
+    onb.step = ONB_STEPS.indexOf(termsOk() ? 'tour' : 'terms'); onb.tour = 0; renderOnb();
   });
   $('#onb-redo').addEventListener('click', () => openOnboarding('car'));
   $('#onb-tour').addEventListener('click', () => openOnboarding('tour', 'tour'));
@@ -2571,6 +2620,7 @@ ${trips.map((t) => `<tr><td>${esc(sheetDate(t.date))}</td><td class="n">${t.trip
     $('#help-mail-sub').textContent = tr('Loop je ergens tegenaan of heb je een idee? Mail ons, we lezen alles.');
   }
   $('#help-faq').addEventListener('click', () => openUrl(CFG.supportUrl + (I18N.lang === 'en' ? '#en' : '')));
+  $('#help-terms').addEventListener('click', () => openTerms());
   $('#help-about').addEventListener('click', () => {
     const text = (CFG.about || {})[I18N.lang === 'en' ? 'en' : 'nl'] || '';
     $('#about-text').innerHTML = text.split(/\n\n+/).map((p) => `<p>${esc(p)}</p>`).join('');

@@ -279,6 +279,11 @@
           <span class="grow"><strong>Veelgestelde vragen</strong><small>Koppelen, inloggen, account verwijderen</small></span>
           <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
         </button>
+        <button type="button" class="list-row" id="help-terms">
+          <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg></span>
+          <span class="grow"><strong>Gebruiksvoorwaarden</strong><small>Wat Ritlog wel en niet doet</small></span>
+          <svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
         <button type="button" class="list-row" id="help-web">
           <span class="l-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
           <span class="grow"><strong>Webversie openen</strong><small>Ritten invoeren op je computer, met hetzelfde account</small></span>
@@ -373,6 +378,13 @@
     <div class="about-head"><img src="icons/icon-192.png" alt="" width="56" height="56"><div><h2>Over de maker</h2><small class="hint" id="about-sub" data-dyn></small></div></div>
     <div class="about-text" id="about-text" data-dyn></div>
     <a class="btn coffee-btn hidden" id="about-coffee" target="_blank" rel="noopener">☕ Trakteer me op een koffie</a>
+  </dialog>
+
+  <dialog id="terms-dialog" class="terms-dialog" data-noclose aria-labelledby="terms-title">
+    <h2 id="terms-title">Even belangrijk</h2>
+    <p class="hint">Ritlog helpt je je ritten bij te houden. Lees dit even voordat je verdergaat.</p>
+    <div id="terms-body" data-dyn></div>
+    <div class="terms-foot"><button type="button" class="btn primary terms-accept" id="terms-accept" disabled>Akkoord</button></div>
   </dialog>
 
   <div class="toast hidden" id="toast" role="status" data-dyn></div>

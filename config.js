@@ -24,6 +24,7 @@ window.RITLOG_CONFIG = {
   supportEmail: 'xicheninfo@gmail.com',
   supportUrl: 'https://chenxi981211-ui.github.io/ritlog/legal/support.html',
   webUrl: 'https://chenxi981211-ui.github.io/ritlog/',
+  termsUrl: 'https://chenxi981211-ui.github.io/ritlog/legal/terms.html',
   appStoreUrl: 'https://apps.apple.com/app/id6834929920', // iPhone-app (badge op de website)
   coffeeUrl: 'https://buymeacoffee.com/xiichen', // Buy Me a Coffee-link (website én app)
   about: {
